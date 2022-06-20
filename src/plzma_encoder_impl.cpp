@@ -544,8 +544,9 @@ namespace plzma {
         }
         if (errorNumber) {
             Exception exception(plzma_error_code_invalid_arguments, nullptr, __FILE__, __LINE__);
-            char tmpBuff[32];
-            sprintf(tmpBuff, "%llu", (unsigned long long)itemsCount);
+            const int buffLen = 32;
+            char tmpBuff[buffLen];
+            snprintf(tmpBuff, buffLen, "%llu", (unsigned long long)itemsCount);
             exception.setReason("The number of items: ", tmpBuff, nullptr);
             exception.setWhat(errorNumber == 1 ? "The 'xz' type supports only one item." : "The number of items is more than supported.", nullptr);
             throw exception;
