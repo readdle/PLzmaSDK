@@ -240,7 +240,12 @@ static HRESULT GetNextItemReal(ISequentialInStream *stream, bool &filled, CItemE
       item.Name = prefix + '/' + item.Name;
   }
 
+  // Added the 'ifndef' below to suppress clang analyzer 'Value stored to 'p' is never read' warning.
+  // Actually we can remove 'p += NFileHeader::kPrefixSize' below, but if some code will be added in future,
+  // then we will be in truble.
+  #ifndef __clang_analyzer__
   p += NFileHeader::kPrefixSize;
+  #endif
 
   if (item.LinkFlag == NFileHeader::NLinkFlag::kHardLink)
   {

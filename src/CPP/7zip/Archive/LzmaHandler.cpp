@@ -84,6 +84,7 @@ class CDecoder final
 public:
   NCompress::NLzma::CDecoder *_lzmaDecoderSpec;
 
+  CDecoder() : _filterCoder(NULL) {}
   ~CDecoder();
   HRESULT Create(bool filtered, ISequentialInStream *inStream);
 
@@ -111,7 +112,6 @@ HRESULT CDecoder::Create(bool filteredMode, ISequentialInStream *inStream)
     if (!_bcjStream)
     {
       _filterCoder = new CFilterCoder(false);
-      CMyComPtr<ICompressCoder> coder = _filterCoder;
       _filterCoder->Filter = new NCompress::NBcj::CCoder(false);
       _bcjStream = _filterCoder;
     }
@@ -137,6 +137,11 @@ HRESULT CDecoder::Code(const CHeader &header, ISequentialOutStream *outStream,
 
   if (filteredMode)
   {
+    if (NULL == _filterCoder) {
+        assert(false);
+        return E_FAIL;
+    }
+      
     RINOK(_filterCoder->SetOutStream(outStream));
     outStream = _bcjStream;
     RINOK(_filterCoder->SetOutStreamSize(NULL));
@@ -287,9 +292,26 @@ void CHandler::GetMethod(NCOM::CPropVariant &prop)
     d /= 9;
     UInt32 pb = d / 5;
     UInt32 lp = d % 5;
-    if (lc != 3) s = AddProp32(s, "lc", lc);
-    if (lp != 0) s = AddProp32(s, "lp", lp);
-    if (pb != 2) s = AddProp32(s, "pb", pb);
+    if (lc != 3)
+    {
+      s = AddProp32(s, "lc", lc);
+    }
+      
+    if (lp != 0)
+    {
+      s = AddProp32(s, "lp", lp);
+    }
+      
+    if (pb != 2)
+    {
+      s = AddProp32(s, "pb", pb);
+      // Added the code below to suppress clang analyzer 'Value stored to 's' is never read' warning.
+      // Actually we can remove 's =' above, but if some code will be added in future below, then we will
+      // be in truble.
+      #ifdef __clang_analyzer__
+      s = s;
+      #endif
+    }
   }
   prop = sz;
 }
@@ -381,7 +403,6 @@ STDMETHODIMP CHandler::Open(IInStream *inStream, const UInt64 *, IArchiveOpenCal
       )
     return S_FALSE;
 
-  CDecoder state;
   const UInt32 outLimit = 1 << 11;
   Byte outBuf[outLimit];
 

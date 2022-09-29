@@ -117,8 +117,23 @@ HRESULT COutArchive::WriteHeaderReal(const CItem &item)
   cur += NFileHeader::kGroupNameSize;
 
 
-  if (item.DeviceMajorDefined) RETURN_IF_NOT_TRUE(WriteOctal_8(cur, item.DeviceMajor)); cur += 8;
-  if (item.DeviceMinorDefined) RETURN_IF_NOT_TRUE(WriteOctal_8(cur, item.DeviceMinor)); cur += 8;
+  if (item.DeviceMajorDefined)
+  {
+    RETURN_IF_NOT_TRUE(WriteOctal_8(cur, item.DeviceMajor));
+  }
+  cur += 8;
+    
+  if (item.DeviceMinorDefined)
+  {
+    RETURN_IF_NOT_TRUE(WriteOctal_8(cur, item.DeviceMinor));
+  }
+
+  // Added the 'ifndef' below to suppress clang analyzer 'Value stored to 'cur' is never read' warning.
+  // Actually we can remove 'cur += 8' below, but if some code will be added in future, then we will
+  // be in truble.
+  #ifndef __clang_analyzer__
+  cur += 8;
+  #endif
 
   if (item.IsSparse())
   {

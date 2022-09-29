@@ -476,7 +476,6 @@ HRESULT CDecoder::Code(ISequentialInStream * const *inStreams, const UInt64 * co
   size_t curSize = dec.dest - _bufs[BCJ2_NUM_STREAMS];
   if (curSize != 0)
   {
-    outSizeProcessed += curSize;
     RINOK(WriteStream(outStreams[0], _bufs[BCJ2_NUM_STREAMS], curSize));
   }
 

@@ -1609,7 +1609,10 @@ HRESULT Update(
 
   CRecordVector<CFilterMode2> filters;
   CObjectVector<CSolidGroup> groups;
+    
+  #ifndef _7ZIP_ST
   bool thereAreRepacks = false;
+  #endif
 
   bool useFilters = options.UseFilters;
   if (useFilters)
@@ -1688,7 +1691,9 @@ HRESULT Update(
         complexity += db->GetFolderFullPackSize(i);
       else
       {
+        #ifndef _7ZIP_ST
         thereAreRepacks = true;
+        #endif
         complexity += repackSize;
         if (inSizeForReduce2 < repackSize)
           inSizeForReduce2 = repackSize;
@@ -1887,7 +1892,7 @@ HRESULT Update(
         if (ui.HasStream())
           continue;
       }
-      else if (ui.IndexInArchive != -1 && db->Files[ui.IndexInArchive].HasStream)
+      else if (ui.IndexInArchive != -1 && NULL != db && db->Files[ui.IndexInArchive].HasStream)
         continue;
       /*
       if (ui.TreeFolderIndex >= 0)
@@ -1910,10 +1915,15 @@ HRESULT Update(
         file.CrcDefined = false;
         name = ui.Name;
       }
-      else
+      else if (NULL != db)
       {
         GetFile(*db, ui.IndexInArchive, file, file2);
         db->GetPath(ui.IndexInArchive, name);
+      }
+      else {
+          // Is this case possible at all?
+          assert(false);
+          continue;
       }
       
       /*

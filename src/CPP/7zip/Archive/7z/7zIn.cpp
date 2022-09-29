@@ -1020,6 +1020,12 @@ void CInArchive::ReadStreamsInfo(
 void CInArchive::ReadBoolVector(unsigned numItems, CBoolVector &v)
 {
   v.ClearAndSetSize(numItems);
+    
+  if (v.IsEmpty())
+  {
+      return;
+  }
+  
   Byte b = 0;
   Byte mask = 0;
   bool *p = &v[0];

@@ -414,9 +414,26 @@ HRESULT CHandler::SetMethodToProp(CNum folderIndex, PROPVARIANT *prop) const
             d /= 9;
             UInt32 pb = d / 5;
             UInt32 lp = d % 5;
-            if (lc != 3) dest = AddProp32(dest, "lc", lc);
-            if (lp != 0) dest = AddProp32(dest, "lp", lp);
-            if (pb != 2) dest = AddProp32(dest, "pb", pb);
+            if (lc != 3)
+            {
+              dest = AddProp32(dest, "lc", lc);
+            }
+            
+            if (lp != 0)
+            {
+              dest = AddProp32(dest, "lp", lp);
+            }
+              
+            if (pb != 2)
+            {
+              dest = AddProp32(dest, "pb", pb);
+              // Added the code below to suppress clang analyzer 'Value stored to 'dest' is never read' warning.
+              // Actually we can remove 'dest =' above, but if some code will be added in future below, then we will
+              // be in truble.
+              #ifdef __clang_analyzer__
+              dest = dest;
+              #endif
+            }
           }
         }
       }

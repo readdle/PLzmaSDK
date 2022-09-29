@@ -407,7 +407,10 @@ static CTX_PTR CreateSuccessors(CPpmd7 *p, BoolInt skip)
     c1->NumStats = 1;
     *ONE_STATE(c1) = upState;
     c1->Suffix = REF(c);
-    SetSuccessor(ps[--numPs], REF(c1));
+    assert(numPs > 0);
+    if (numPs > 0) {
+      SetSuccessor(ps[--numPs], REF(c1));
+    }
     c = c1;
   }
   while (numPs != 0);

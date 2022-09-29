@@ -595,7 +595,12 @@ static SRes MixCoder_Code(CMixCoder *p,
 
     
     *srcLen = srcLen2;
+    // Code below looks unnecessary, because 'src' is never read after this assignment.
+    // But it is better to leave it here to avoid possible issues after possible merges with
+    // original repo master/main branch.
+    #ifndef __clang_analyzer__
     src += srcLen2;
+    #endif
     p->outWritten += destLen2;
     
     if (res != SZ_OK || srcWasFinished || wasFinished)
