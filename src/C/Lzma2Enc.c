@@ -739,8 +739,8 @@ SRes Lzma2Enc_Encode2(CLzma2EncHandle pp,
     return SZ_ERROR_PARAM;
   }
 
-  if ((NULL != outStream && NULL != outBuf && NULL != outBufSize) ||
-      (NULL == outStream && NULL == outBuf && NULL == outBufSize))
+  if ((NULL != outStream && (NULL != outBuf || NULL != outBufSize)) ||
+      (NULL == outStream && (NULL == outBuf || NULL == outBufSize)))
   {
     return SZ_ERROR_PARAM;
   }
