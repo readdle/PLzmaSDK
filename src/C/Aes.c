@@ -145,6 +145,13 @@ void MY_FAST_CALL Aes_SetKey_Enc(UInt32 *w, const Byte *key, unsigned keySize)
   unsigned i, wSize;
   wSize = keySize + 28;
   keySize /= 4;
+    
+  if (0 == keySize)
+  {
+    assert(keySize > 0);
+    return;
+  }
+    
   w[0] = ((UInt32)keySize / 2) + 3;
   w += 4;
 

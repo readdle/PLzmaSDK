@@ -481,7 +481,10 @@ HRESULT CHandler::Extract(const UInt32 *indices, UInt32 numItems,
           RINOK(_stream->Seek(item->GetDataPosition(), STREAM_SEEK_SET, NULL));
         }
         streamSpec->Init(item->GetPackSizeAligned());
+        // To avoid false positive warning from static analyzer
+        #ifndef __clang_analyzer__
         RINOK(copyCoder->Code(inStream2, outStream, NULL, NULL, progress));
+        #endif
       }
       if (outStreamSpec->GetRem() != 0)
         opRes = NExtract::NOperationResult::kDataError;

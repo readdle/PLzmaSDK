@@ -2095,6 +2095,12 @@ MY_NO_INLINE static void FillAlignPrices(CLzmaEnc *p)
     bit = sym & 1; sym >>= 1; price += GET_PRICEa(probs[m], bit); m = (m << 1) + bit;
     bit = sym & 1; sym >>= 1; price += GET_PRICEa(probs[m], bit); m = (m << 1) + bit;
     bit = sym & 1; sym >>= 1; price += GET_PRICEa(probs[m], bit); m = (m << 1) + bit;
+    // Added the code below to suppress clang analyzer 'Value stored to 'sym' is never read' warning.
+    // Actually we can remove 'sym >>= 1' above, but if some code will be added in future below, then we will
+    // be in truble.
+    #ifdef __clang_analyzer__
+    sym = sym;
+    #endif
     prob = probs[m];
     p->alignPrices[i    ] = price + GET_PRICEa_0(prob);
     p->alignPrices[i + 8] = price + GET_PRICEa_1(prob);

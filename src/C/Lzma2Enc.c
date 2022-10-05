@@ -156,7 +156,13 @@ static SRes Lzma2EncInt_EncodeSubblock(CLzma2EncInt *p, Byte *outBuf,
   {
     if (res != SZ_ERROR_OUTPUT_EOF)
       return res;
+      
+    // Added the 'ifndef' below to suppress clang analyzer 'Value stored to 'res' is never read' warning.
+    // Actually we can remove 'res = SZ_OK' below, but if some code will be added in future, then we will
+    // be in truble.
+    #ifndef __clang_analyzer__
     res = SZ_OK;
+    #endif
     useCopyBlock = True;
   }
 
@@ -504,6 +510,12 @@ static SRes Lzma2Enc_EncodeMt1(
     int finished,
     ICompressProgress *progress)
 {
+  assert((NULL == outStream && NULL != outBuf && NULL != outBufSize) ||
+         (NULL != outStream && NULL == outBuf && NULL == outBufSize));
+    
+  assert((NULL == inStream && NULL != inData) ||
+         (NULL != inStream && NULL == inData));
+    
   UInt64 unpackTotal = 0;
   UInt64 packTotal = 0;
   size_t outLim = 0;
@@ -722,11 +734,16 @@ SRes Lzma2Enc_Encode2(CLzma2EncHandle pp,
 {
   CLzma2Enc *p = (CLzma2Enc *)pp;
 
-  if (inStream && inData)
+  if ((NULL != inStream && NULL != inData) || (NULL == inStream && NULL == inData))
+  {
     return SZ_ERROR_PARAM;
+  }
 
-  if (outStream && outBuf)
+  if ((NULL != outStream && (NULL != outBuf || NULL != outBufSize)) ||
+      (NULL == outStream && (NULL == outBuf || NULL == outBufSize)))
+  {
     return SZ_ERROR_PARAM;
+  }
 
   {
     unsigned i;

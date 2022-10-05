@@ -476,7 +476,12 @@ HRESULT CDecoder::Code(ISequentialInStream * const *inStreams, const UInt64 * co
   size_t curSize = dec.dest - _bufs[BCJ2_NUM_STREAMS];
   if (curSize != 0)
   {
+    // Code below looks unnecessary, because 'outSizeProcessed' is never read after this assignment.
+    // But it is better to leave it here to avoid possible issues after possible merges with
+    // original repo master/main branch.
+#ifndef __clang_analyzer__
     outSizeProcessed += curSize;
+#endif // __clang_analyzer__
     RINOK(WriteStream(outStreams[0], _bufs[BCJ2_NUM_STREAMS], curSize));
   }
 

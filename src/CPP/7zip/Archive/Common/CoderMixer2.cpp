@@ -409,9 +409,12 @@ HRESULT CMixerST::GetInStream2(
     
     for (UInt32 i = 0; i < numInStreams; i++)
     {
+      // To avoid false positive warning from static analyzer
+      #ifndef __clang_analyzer__
       CMyComPtr<ISequentialInStream> seqInStream2;
       RINOK(GetInStream(inStreams, /* inSizes, */ startIndex + i, &seqInStream2));
       RINOK(setStream2->SetInStream2(i, seqInStream2));
+      #endif
     }
   }
 
@@ -534,9 +537,14 @@ HRESULT CMixerST::GetOutStream(
     coder.Coder.QueryInterface(IID_ICompressSetOutStream, &setOutStream);
     if (setOutStream)
     {
+      // To avoid false positive warning from static analyzer
+      #ifdef __clang_analyzer__
+      startIndex = startIndex;
+      #else
       CMyComPtr<ISequentialOutStream> seqOutStream2;
       RINOK(GetOutStream(outStreams, /* outSizes, */ startIndex + 0, &seqOutStream2));
       RINOK(setOutStream->SetOutStream(seqOutStream2));
+      #endif
       isSet = true;
     }
   }
@@ -716,6 +724,9 @@ HRESULT CMixerST::Code(
   UInt32 numInStreams  =  EncodeMode ? 1 : mainCoder.NumStreams;
   UInt32 numOutStreams = !EncodeMode ? 1 : mainCoder.NumStreams;
   
+  assert(numInStreams > 0);
+  assert(numOutStreams > 0);
+    
   UInt32 startInIndex  =  EncodeMode ? ci : _bi.Coder_to_Stream[ci];
   UInt32 startOutIndex = !EncodeMode ? ci : _bi.Coder_to_Stream[ci];
   

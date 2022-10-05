@@ -446,9 +446,17 @@ HRESULT CEncoder::Encode(
     outStreamPointers.Add(outStreamSizeCount);
   }
 
+  assert(false == tempBuffers.IsEmpty() || _bindInfo.PackStreams.Size() <= 1);
+    
   for (i = 1; i < _bindInfo.PackStreams.Size(); i++)
     outStreamPointers.Add(tempBuffers[i - 1]);
 
+  if (outStreamPointers.IsEmpty()) {
+    // This looks like unexpected behavior
+    assert(false);
+    return E_FAIL;
+  }
+    
   bool dataAfterEnd_Error;
 
   RINOK(_mixer->Code(

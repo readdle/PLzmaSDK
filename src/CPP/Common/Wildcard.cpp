@@ -430,6 +430,8 @@ void CCensorNode::AddItem2(bool include, const UString &path, bool recursive, bo
 
 void CCensorNode::ExtendExclude(const CCensorNode &fromNodes)
 {
+  // To avoid false positive warning from static analyzer
+  #ifndef __clang_analyzer__
   ExcludeItems += fromNodes.ExcludeItems;
   FOR_VECTOR (i, fromNodes.SubNodes)
   {
@@ -439,6 +441,7 @@ void CCensorNode::ExtendExclude(const CCensorNode &fromNodes)
       subNodeIndex = SubNodes.Add(CCensorNode(node.Name, this));
     SubNodes[subNodeIndex].ExtendExclude(node);
   }
+  #endif
 }
 
 int CCensor::FindPrefix(const UString &prefix) const

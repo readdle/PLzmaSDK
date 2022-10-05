@@ -344,12 +344,17 @@ static MY_NO_INLINE SRes ReadUi32s(CSzData *sd2, UInt32 numItems, CSzBitUi32s *c
   defs = crcs->Defs;
   vals = crcs->Vals;
   for (i = 0; i < numItems; i++)
+  {
+    assert(defs != NULL && vals != NULL);
     if (SzBitArray_Check(defs, i))
     {
       SZ_READ_32(vals[i]);
     }
     else
+    {
       vals[i] = 0;
+    }
+  }
   *sd2 = sd;
   return SZ_OK;
 }
@@ -1070,16 +1075,23 @@ static MY_NO_INLINE SRes ReadTime(CSzBitUi64s *p, UInt32 num,
   vals = p->Vals;
   defs = p->Defs;
   for (i = 0; i < num; i++)
+  {
+    assert(defs != NULL && vals != NULL);
     if (SzBitArray_Check(defs, i))
     {
       if (sd.Size < 8)
+      {
         return SZ_ERROR_ARCHIVE;
+      }
       vals[i].Low = GetUi32(sd.Data);
       vals[i].High = GetUi32(sd.Data + 4);
       SKIP_DATA2(sd, 8);
     }
     else
+    {
       vals[i].High = vals[i].Low = 0;
+    }
+  }
   
   if (external == 0)
     *sd2 = sd;
@@ -1306,6 +1318,8 @@ static SRes SzReadHeader2(
     MY_ALLOC_ZE(UInt32, p->FileToFolder, p->NumFiles, allocMain);
     MY_ALLOC(UInt64, p->UnpackPositions, p->NumFiles + 1, allocMain);
     MY_ALLOC_ZE(Byte, p->IsDirs, (p->NumFiles + 7) >> 3, allocMain);
+      
+    assert(p->IsDirs != NULL);
 
     RINOK(SzBitUi32s_Alloc(&p->CRCs, p->NumFiles, allocMain));
 

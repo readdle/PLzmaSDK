@@ -487,7 +487,9 @@ HRESULT CDecoder::Decode(
   CLockedInStream *lockedInStreamSpec = new CLockedInStream;
   CMyComPtr<IUnknown> lockedInStream = lockedInStreamSpec;
 
+  #if defined(USE_MIXER_MT) && defined(USE_MIXER_ST)
   bool needMtLock = false;
+  #endif
 
   if (folderInfo.PackStreams.Size() > 1)
   {
@@ -496,10 +498,12 @@ HRESULT CDecoder::Decode(
     RINOK(inStream->Seek(startPos + packPositions[0], STREAM_SEEK_SET, &lockedInStreamSpec->Pos));
     lockedInStreamSpec->Stream = inStream;
 
-    #ifdef USE_MIXER_ST
+    #if defined(USE_MIXER_MT) && defined(USE_MIXER_ST)
     if (_mixer->IsThere_ExternalCoder_in_PackTree(_mixer->MainCoderIndex))
-    #endif
+    {
       needMtLock = true;
+    }
+    #endif
   }
 
   for (unsigned j = 0; j < folderInfo.PackStreams.Size(); j++)
