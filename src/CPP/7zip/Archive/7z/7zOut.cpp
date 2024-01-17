@@ -565,7 +565,11 @@ void COutArchive::WriteHeader(
       digests.Vals.Add(file.Crc);
     }
 
+    // Static analyzer complains that 'unpackSizes' may be used in WriteSubStreamsInfo()
+    // when it is not initialized, but it's not clear if it's possible in real life.
+#ifndef __clang_analyzer__
     WriteSubStreamsInfo(db.Folders, (const COutFolders &)db, unpackSizes, digests);
+#endif
     WriteByte(NID::kEnd);
   }
 
