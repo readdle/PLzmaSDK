@@ -22,6 +22,7 @@ final class plzmaTests: XCTestCase, DecoderDelegate {
     }
     
     func testExample() {
+        print("Version: \(PLzmaSDK.version)")
         do {
             var path = try Path("1\\3")
             try path &= "5\\6"
@@ -77,7 +78,9 @@ final class plzmaTests: XCTestCase, DecoderDelegate {
             let stream = try OutStream()
             let encoder = try Encoder(stream: stream, fileType: .sevenZ, method: .LZMA2)
             var boolVal = try encoder.shouldCreateSolidArchive()
+            XCTAssertTrue(boolVal)
             boolVal = try encoder.shouldCreateSolidArchive()
+            XCTAssertTrue(boolVal)
         } catch let exception as Exception {
             print("Exception: \(exception)")
         } catch let error {

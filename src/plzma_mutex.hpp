@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,6 +33,10 @@
 #include "../libplzma.hpp"
 #include "plzma_private.hpp"
 
+#if defined(LIBPLZMA_HAVE_STD)
+#include <mutex>
+#endif
+
 #include "CPP/Common/Common.h"
 #include "CPP/Common/MyWindows.h"
 
@@ -47,6 +51,9 @@
 
 namespace plzma {
     
+#if defined(LIBPLZMA_HAVE_STD)
+    typedef std::mutex Mutex;
+#else
     struct Mutex final {
     private:
 #if defined(LIBPLZMA_MSC)
@@ -57,21 +64,21 @@ namespace plzma {
         LIBPLZMA_NON_COPYABLE_NON_MOVABLE(Mutex)
         
     public:
-        void lock() const {
+        void lock() {
 #if defined(LIBPLZMA_MSC)
-            EnterCriticalSection(static_cast<LPCRITICAL_SECTION>(&_criticalSection));
+            ::EnterCriticalSection(static_cast<LPCRITICAL_SECTION>(&_criticalSection));
 #elif defined(LIBPLZMA_POSIX)
-            if (pthread_mutex_lock(&_mutex) != 0) {
+            if (::pthread_mutex_lock(&_mutex) != 0) {
                 throw Exception(plzma_error_code_internal, "Can't lock mutex.", __FILE__, __LINE__);
             }
 #endif
         }
         
-        void unlock() const {
+        void unlock() {
 #if defined(LIBPLZMA_MSC)
-            LeaveCriticalSection(static_cast<LPCRITICAL_SECTION>(&_criticalSection));
+            ::LeaveCriticalSection(static_cast<LPCRITICAL_SECTION>(&_criticalSection));
 #elif defined(LIBPLZMA_POSIX)
-            if (pthread_mutex_unlock(&_mutex) != 0) {
+            if (::pthread_mutex_unlock(&_mutex) != 0) {
                 throw Exception(plzma_error_code_internal, "Can't unlock mutex.", __FILE__, __LINE__);
             }
 #endif
@@ -79,16 +86,16 @@ namespace plzma {
         
         Mutex() {
 #if defined(LIBPLZMA_MSC)
-            InitializeCriticalSection(static_cast<LPCRITICAL_SECTION>(&_criticalSection));
+            ::InitializeCriticalSection(static_cast<LPCRITICAL_SECTION>(&_criticalSection));
 #elif defined(LIBPLZMA_POSIX)
             pthread_mutexattr_t attr;
             int maiRes, miRes = -1;
-            if ( (maiRes = pthread_mutexattr_init(&attr)) == 0 ) {
-                if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_DEFAULT) == 0) {
-                    miRes = pthread_mutex_init(&_mutex, &attr);
+            if ( (maiRes = ::pthread_mutexattr_init(&attr)) == 0 ) {
+                if (::pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_DEFAULT) == 0) {
+                    miRes = ::pthread_mutex_init(&_mutex, &attr);
                 }
                 if (maiRes == 0) {
-                    maiRes = pthread_mutexattr_destroy(&attr);
+                    maiRes = ::pthread_mutexattr_destroy(&attr);
                 }
             }
             if (miRes != 0 || maiRes != 0) {
@@ -99,16 +106,16 @@ namespace plzma {
         
         ~Mutex() noexcept {
 #if defined(LIBPLZMA_MSC)
-            DeleteCriticalSection(static_cast<LPCRITICAL_SECTION>(&_criticalSection));
+            ::DeleteCriticalSection(static_cast<LPCRITICAL_SECTION>(&_criticalSection));
 #elif defined(LIBPLZMA_POSIX)
-            pthread_mutex_destroy(&_mutex); // ignore return res.
+            ::pthread_mutex_destroy(&_mutex); // ignore return res.
 #endif
         }
     };
-    
+
     struct LockGuard final {
     private:
-        const Mutex & _mutex;
+        Mutex & _mutex;
         bool _locked = true;
         
         LIBPLZMA_NON_COPYABLE_NON_MOVABLE(LockGuard)
@@ -124,7 +131,7 @@ namespace plzma {
             _locked = false;
         }
         
-        LockGuard(const Mutex & mutex) :
+        LockGuard(Mutex & mutex) :
             _mutex(mutex) {
                 _mutex.lock();
         }
@@ -135,10 +142,11 @@ namespace plzma {
             }
         }
     };
+#endif // !LIBPLZMA_HAVE_STD
     
     struct FailableLockGuard final {
     private:
-        const Mutex & _mutex;
+        Mutex & _mutex;
         HRESULT _res = S_OK;
         bool _locked = true;
         
@@ -169,7 +177,7 @@ namespace plzma {
             }
         }
         
-        FailableLockGuard(const Mutex & mutex) noexcept :
+        FailableLockGuard(Mutex & mutex) noexcept :
             _mutex(mutex) {
                 try {
                     _mutex.lock();
@@ -179,23 +187,39 @@ namespace plzma {
         }
         
         ~FailableLockGuard() noexcept {
-            if (_locked && _res == S_OK) {
+            if (_locked && (_res == S_OK)) {
                 try {
                     _mutex.unlock();
                 } catch (...) {
-                    
+                    // do nothing
                 }
             }
         }
     };
 
+#if defined(LIBPLZMA_HAVE_STD)
+#define LIBPLZMA_MUTEX(NAME) std::mutex NAME;
+
+#define LIBPLZMA_LOCKGUARD(NAME,MUTEX) const std::lock_guard<std::mutex> NAME(MUTEX);
+
+#define LIBPLZMA_UNIQUE_LOCK(NAME,MUTEX) std::unique_lock<std::mutex> NAME(MUTEX);
+
+#define LIBPLZMA_UNIQUE_LOCK_LOCK(NAME) NAME.lock();
+
+#define LIBPLZMA_UNIQUE_LOCK_UNLOCK(NAME) NAME.unlock();
+
+#else
 #define LIBPLZMA_MUTEX(NAME) Mutex NAME;
-    
-#define LIBPLZMA_LOCKGUARD(NAME,MUTEX) LockGuard NAME(MUTEX);
 
-#define LIBPLZMA_LOCKGUARD_LOCK(NAME) NAME.lock();
+#define LIBPLZMA_LOCKGUARD(NAME,MUTEX) const LockGuard NAME(MUTEX);
 
-#define LIBPLZMA_LOCKGUARD_UNLOCK(NAME) NAME.unlock();
+#define LIBPLZMA_UNIQUE_LOCK(NAME,MUTEX) LockGuard NAME(MUTEX);
+
+#define LIBPLZMA_UNIQUE_LOCK_LOCK(NAME) NAME.lock();
+
+#define LIBPLZMA_UNIQUE_LOCK_UNLOCK(NAME) NAME.unlock();
+
+#endif // !LIBPLZMA_HAVE_STD
 
 } // namespace plzma
 
@@ -206,9 +230,11 @@ namespace plzma {
 
 #define LIBPLZMA_LOCKGUARD(NAME,MUTEX)
 
-#define LIBPLZMA_LOCKGUARD_LOCK(NAME)
+#define LIBPLZMA_UNIQUE_LOCK(NAME,MUTEX)
 
-#define LIBPLZMA_LOCKGUARD_UNLOCK(NAME)
+#define LIBPLZMA_UNIQUE_LOCK_LOCK(NAME)
+
+#define LIBPLZMA_UNIQUE_LOCK_UNLOCK(NAME)
 
 #endif // LIBPLZMA_THREAD_UNSAFE
 

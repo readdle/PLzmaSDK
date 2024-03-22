@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -62,17 +62,17 @@ namespace plzma {
         LIBPLZMA_NON_COPYABLE_NON_MOVABLE(OpenCallback)
         
     public:
-        MY_UNKNOWN_IMP3(IArchiveOpenCallback, ICryptoGetTextPassword, ICryptoGetTextPassword2)
+        Z7_COM_UNKNOWN_IMP_3(IArchiveOpenCallback, ICryptoGetTextPassword, ICryptoGetTextPassword2)
         
         // IArchiveOpenCallback
-        STDMETHOD(SetTotal)(const UInt64 * files, const UInt64 * bytes);
-        STDMETHOD(SetCompleted)(const UInt64 * files, const UInt64 * bytes);
+        STDMETHOD(SetTotal)(const UInt64 * files, const UInt64 * bytes) throw() override final;
+        STDMETHOD(SetCompleted)(const UInt64 * files, const UInt64 * bytes) throw() override final;
         
         // ICryptoGetTextPassword
-        STDMETHOD(CryptoGetTextPassword)(BSTR * password);
+        STDMETHOD(CryptoGetTextPassword)(BSTR * password) throw() override final;
         
         // ICryptoGetTextPassword2
-        STDMETHOD(CryptoGetTextPassword2)(Int32 * passwordIsDefined, BSTR * password);
+        STDMETHOD(CryptoGetTextPassword2)(Int32 * passwordIsDefined, BSTR * password) throw() override final;
         
         CMyComPtr<IInArchive> archive() const noexcept;
         bool open();
@@ -80,8 +80,11 @@ namespace plzma {
         plzma_size_t itemsCount() noexcept;
         SharedPtr<Item> itemAt(const plzma_size_t index);
         SharedPtr<ItemArray> allItems();
+        
         OpenCallback(const CMyComPtr<InStreamBase> & stream,
+#if !defined(LIBPLZMA_NO_CRYPTO)
                      const String & passwd,
+#endif
                      const plzma_file_type type);
         virtual ~OpenCallback() { }
     };
