@@ -138,16 +138,7 @@ HRESULT CDecoder::Code(const CHeader &header, ISequentialOutStream *outStream,
 
   if (filteredMode)
   {
-<<<<<<< HEAD
-    if (NULL == _filterCoder) {
-        assert(false);
-        return E_FAIL;
-    }
-      
-    RINOK(_filterCoder->SetOutStream(outStream));
-=======
     RINOK(_filterCoder->SetOutStream(outStream))
->>>>>>> origin/master
     outStream = _bcjStream;
     RINOK(_filterCoder->SetOutStreamSize(NULL))
   }

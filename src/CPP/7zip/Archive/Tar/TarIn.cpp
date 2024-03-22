@@ -1133,5 +1133,3 @@ HRESULT CArchive::ReadItem(CItemEx &item)
 }
 
 }}
-
-#endif // !LIBPLZMA_NO_TAR

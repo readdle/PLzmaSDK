@@ -1761,10 +1761,6 @@ HRESULT CInArchive::ReadDatabase(
     db.UnsupportedFeatureError = true;
     return S_FALSE;
   }
-  catch(CInvalidPasswordException &)
-  {
-    return E_INVALIDPASSWORD;
-  }
   catch(CInArchiveException &)
   {
     db.ThereIsHeaderError = true;

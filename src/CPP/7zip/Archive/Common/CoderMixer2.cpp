@@ -407,8 +407,6 @@ HRESULT CMixerST::GetInStream2(
     
     for (UInt32 i = 0; i < numInStreams; i++)
     {
-      // To avoid false positive warning from static analyzer
-      #ifndef __clang_analyzer__
       CMyComPtr<ISequentialInStream> seqInStream2;
       RINOK(GetInStream(inStreams, /* inSizes, */ startIndex + i, &seqInStream2))
       RINOK(setStream2->SetInStream2(i, seqInStream2))
@@ -534,10 +532,6 @@ HRESULT CMixerST::GetOutStream(
     coder.Coder.QueryInterface(IID_ICompressSetOutStream, &setOutStream);
     if (setOutStream)
     {
-      // To avoid false positive warning from static analyzer
-      #ifdef __clang_analyzer__
-      startIndex = startIndex;
-      #else
       CMyComPtr<ISequentialOutStream> seqOutStream2;
       RINOK(GetOutStream(outStreams, /* outSizes, */ startIndex + 0, &seqOutStream2))
       RINOK(setOutStream->SetOutStream(seqOutStream2))
@@ -797,7 +791,7 @@ HRESULT CMixerST::Code(
   if (res == k_My_HRESULT_WritingWasCut)
     res = S_OK;
 
-  if (res == S_OK || res == S_FALSE || res == E_INVALIDDATA)
+  if (res == S_OK || res == S_FALSE)
   {
     res = GetError(res, FinishCoder(ci));
   }
