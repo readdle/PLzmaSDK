@@ -454,7 +454,7 @@ HRESULT CHandler::SetMethodToProp(CNum folderIndex, PROPVARIANT *prop) const
             const UInt32 lp = d % 5;
             if (lc != 3) dest = AddProp32(dest, "lc", lc);
             if (lp != 0) dest = AddProp32(dest, "lp", lp);
-            if (pb != 2) dest = AddProp32(dest, "pb", pb);
+            if (pb != 2) AddProp32(dest, "pb", pb);
           }
         }
       }

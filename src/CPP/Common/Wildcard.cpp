@@ -306,14 +306,20 @@ bool CItem::CheckPath(const UStringVector &pathParts, bool isFile) const
     unsigned i;
     for (i = 0; i < PathParts.Size(); i++)
     {
+      int index = i + (unsigned)d;
+      
+      if (index > pathParts.Size() - 1) {
+        return false;
+      }
+
       if (WildcardMatching)
       {
-        if (!DoesWildcardMatchName(PathParts[i], pathParts[i + (unsigned)d]))
+        if (!DoesWildcardMatchName(PathParts[i], pathParts[index]))
           break;
       }
       else
       {
-        if (CompareFileNames(PathParts[i], pathParts[i + (unsigned)d]) != 0)
+        if (CompareFileNames(PathParts[i], pathParts[index]) != 0)
           break;
       }
     }

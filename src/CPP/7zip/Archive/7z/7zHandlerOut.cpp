@@ -211,10 +211,10 @@ HRESULT CHandler::SetMainMethod(CCompressionMethodMode &methodMode)
       // here we don't use chunkSize property
       numSolidBytes = cs << 6;
 
+#ifndef Z7_ST
       // here we get real chunkSize
       cs = oneMethodInfo.Get_Xz_BlockSize();
-      if (dicSize > cs)
-        dicSize = cs;
+#endif
 
       const UInt64 kSolidBytes_Lzma2_Max = ((UInt64)1 << 34);
       if (numSolidBytes > kSolidBytes_Lzma2_Max)

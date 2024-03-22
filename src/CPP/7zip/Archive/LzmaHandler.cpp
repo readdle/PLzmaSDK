@@ -112,7 +112,6 @@ HRESULT CDecoder::Create(bool filteredMode, ISequentialInStream *inStream)
     if (!_bcjStream)
     {
       _filterCoder = new CFilterCoder(false);
-      CMyComPtr<ICompressCoder> coder = _filterCoder;
       _filterCoder->Filter = new NCompress::NBcj::CCoder2(z7_BranchConvSt_X86_Dec);
       _bcjStream = _filterCoder;
     }
@@ -129,7 +128,7 @@ CDecoder::~CDecoder()
 HRESULT CDecoder::Code(const CHeader &header, ISequentialOutStream *outStream,
     ICompressProgressInfo *progress)
 {
-  if (header.FilterID > 1)
+  if (header.FilterID > 1 || _filterCoder == nullptr)
     return E_NOTIMPL;
 
   RINOK(_lzmaDecoderSpec->SetDecoderProperties2(header.LzmaProps, 5))

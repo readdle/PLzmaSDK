@@ -550,7 +550,8 @@ static char *Utf16_To_Utf8(char *dest, const wchar_t *src, const wchar_t *srcLim
     
     if (val < 0x80)
     {
-      *dest++ = (char)val;
+      *dest = (char)val;
+      ++dest;
       continue;
     }
 
@@ -585,7 +586,8 @@ static char *Utf16_To_Utf8(char *dest, const wchar_t *src, const wchar_t *srcLim
     if (flags & Z7_UTF_FLAG_TO_UTF8_EXTRACT_BMP_ESCAPE)
       if (IS_ESCAPE_POINT(val, 0))
       {
-        *dest++ = (char)(val);
+        *dest = (char)(val);
+        ++dest;
         continue;
       }
     
@@ -644,8 +646,9 @@ static char *Utf16_To_Utf8(char *dest, const wchar_t *src, const wchar_t *srcLim
     }
     #endif
 
-    *dest++ = b;
-    
+    *dest = b;
+    ++dest;
+
     do
     {
       numBits -= 6;

@@ -2176,7 +2176,7 @@ HRESULT Update(
         if (ui.HasStream())
           continue;
       }
-      else if (ui.IndexInArchive != -1 && db->Files[(unsigned)ui.IndexInArchive].HasStream)
+      else if (ui.IndexInArchive != -1 && db != nullptr && db->Files[(unsigned)ui.IndexInArchive].HasStream)
         continue;
       /*
       if (ui.TreeFolderIndex >= 0)

@@ -760,12 +760,14 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
     outStreamSpec->Init(skipMode ? 0 : unpackSize, true);
 
     Int32 opRes = NExtract::NOperationResult::kOK;
-    CMyComPtr<ISequentialInStream> inStream2;
+    ISequentialInStream* inStream2 = nullptr;
+    CMyComPtr<ISequentialInStream> inStream2Releaser;
     if (!item->Is_Sparse())
       inStream2 = inStream;
     else
     {
-      GetStream(index, &inStream2);
+      GetStream(index, &inStream2Releaser);
+      inStream2 = inStream2Releaser;
       if (!inStream2)
         return E_FAIL;
     }

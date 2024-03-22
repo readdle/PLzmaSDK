@@ -293,8 +293,6 @@ HRESULT CArchive::GetNextItemReal(CItemEx &item)
   }
   else
     ReadString(buf, NFileHeader::kNameSize, item.Name);
-  
-  p += NFileHeader::kPrefixSize;
   #endif
 
   if (item.LinkFlag == NFileHeader::NLinkFlag::kHardLink)

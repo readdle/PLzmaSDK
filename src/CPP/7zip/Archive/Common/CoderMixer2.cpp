@@ -391,7 +391,7 @@ HRESULT CMixerST::GetInStream2(
     coder.QueryInterface(IID_ICompressSetInStream, (void **)&setStream);
     if (setStream)
     {
-      CMyComPtr<ISequentialInStream> seqInStream2;
+      ISequentialInStream* seqInStream2 = nullptr;
       RINOK(GetInStream(inStreams, /* inSizes, */ startIndex + 0, &seqInStream2))
       RINOK(setStream->SetInStream(seqInStream2))
       isSet = true;
@@ -407,7 +407,7 @@ HRESULT CMixerST::GetInStream2(
     
     for (UInt32 i = 0; i < numInStreams; i++)
     {
-      CMyComPtr<ISequentialInStream> seqInStream2;
+      ISequentialInStream* seqInStream2 = nullptr;
       RINOK(GetInStream(inStreams, /* inSizes, */ startIndex + i, &seqInStream2))
       RINOK(setStream2->SetInStream2(i, seqInStream2))
     }
@@ -532,7 +532,7 @@ HRESULT CMixerST::GetOutStream(
     coder.Coder.QueryInterface(IID_ICompressSetOutStream, &setOutStream);
     if (setOutStream)
     {
-      CMyComPtr<ISequentialOutStream> seqOutStream2;
+      ISequentialOutStream* seqOutStream2 = nullptr;
       RINOK(GetOutStream(outStreams, /* outSizes, */ startIndex + 0, &seqOutStream2))
       RINOK(setOutStream->SetOutStream(seqOutStream2))
       isSet = true;
@@ -721,7 +721,7 @@ HRESULT CMixerST::Code(
 
   for (i = 0; i < numInStreams; i++)
   {
-    CMyComPtr<ISequentialInStream> seqInStream;
+    ISequentialInStream* seqInStream;
     RINOK(GetInStream(inStreams, /* inSizes, */ startInIndex + i, &seqInStream))
     seqInStreams.Add(seqInStream);
   }
@@ -772,20 +772,24 @@ HRESULT CMixerST::Code(
   const UInt64 * const *isSizes2 = EncodeMode ? &mainCoder.UnpackSizePointer : &mainCoder.PackSizePointers.Front();
   const UInt64 * const *outSizes2 = EncodeMode ? &mainCoder.PackSizePointers.Front() : &mainCoder.UnpackSizePointer;
 
-  HRESULT res;
-  if (mainCoder.Coder)
+  HRESULT res = S_FALSE;
+
+  if (seqInStreamsSpec.IsEmpty() == false && seqOutStreamsSpec.IsEmpty() == false)
   {
-    res = mainCoder.Coder->Code(
-        seqInStreamsSpec[0], seqOutStreamsSpec[0],
-        isSizes2[0], outSizes2[0],
-        progress);
+    if (mainCoder.Coder)
+    {
+      res = mainCoder.Coder->Code(
+      seqInStreamsSpec[0], seqOutStreamsSpec[0],
+      isSizes2[0], outSizes2[0],
+      progress);
   }
   else
   {
     res = mainCoder.Coder2->Code(
-        &seqInStreamsSpec.Front(), isSizes2, numInStreams,
-        &seqOutStreamsSpec.Front(), outSizes2, numOutStreams,
-        progress);
+      &seqInStreamsSpec.Front(), isSizes2, numInStreams,
+      &seqOutStreamsSpec.Front(), outSizes2, numOutStreams,
+      progress);
+   }
   }
 
   if (res == k_My_HRESULT_WritingWasCut)
