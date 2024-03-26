@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -31,7 +31,7 @@ import libplzma
 #endif
 
 /// The interface to a progress delegate of the encoder.
-public protocol EncoderDelegate: class {
+public protocol EncoderDelegate: AnyObject {
     /// Reports the progress of the operation.
     /// - Parameter encoder: The encoder.
     /// - Parameter path: The currently processing item's path.
@@ -41,6 +41,7 @@ public protocol EncoderDelegate: class {
 
 /// The encoder for compressing the archive items.
 public final class Encoder {
+    
     private final class Context {
         weak var encoder: Encoder?
         weak var delegate: EncoderDelegate?
@@ -52,7 +53,9 @@ public final class Encoder {
     
     /// Opens the encoder for compressing.
     ///
-    /// During the process, the encoder is self-retained till operation is in progress.
+    /// During the process, the encoder is self-retained as long the operation is in progress.
+    /// - Returns: `false` if nothing to compress or encoder aborted or incorrect number of items or number of items greater than supported.
+    /// otherwise `true`.
     /// - Note: The opening progress might be executed in a separate thread.
     /// - Note: The opening progress might be aborted via `abort()` method.
     /// - Note: Thread-safe.
@@ -65,6 +68,7 @@ public final class Encoder {
         }
         return result
     }
+    
     
     /// Aborts the opening or compressing process.
     /// - Note: The aborted encoder is no longer valid.
@@ -80,7 +84,7 @@ public final class Encoder {
     
     /// Compresses the provided paths and streams.
     ///
-    /// During the process, the encoder is self-retained till operation is in progress.
+    /// During the process, the encoder is self-retained as long the operation is in progress.
     /// - Note: The compress progress might be executed in a separate thread.
     /// - Note: The compress progress might be aborted via `abort()` method.
     /// - Note: Thread-safe.
@@ -146,7 +150,11 @@ public final class Encoder {
     // MARK: - Properties
     
     /// Provides the password for archive.
-    /// - Parameter password: The password wide character presentation.
+    ///
+    /// This password will be used for encrypting header and the content if such options are enabled
+    /// and selected type supports password protection.
+    /// - SeeAlso: `setShouldEncryptHeader`, `setShouldEncryptContent` methods and `FileType` enum.
+    /// - Parameter password: The password. nil or zero length password means no password provided.
     /// - Note: Thread-safe. Must be set before opening.
     /// - Throws: `Exception`.
     public func setPassword(_ password: String?) throws {
@@ -205,7 +213,7 @@ public final class Encoder {
     
     
     /// Setter for an archive compression level.
-    /// @param level The level in a range [0; 9].
+    /// - Parameter level: The level in a range [0; 9].
     /// - Note: Thread-safe. Must be set before opening.
     /// - Throws: `Exception`.
     public func setCompressionLevel(_ level: UInt8) throws {
@@ -284,6 +292,10 @@ public final class Encoder {
     
     
     /// Set encoder will encrypt the content of the archive items.
+    ///
+    /// The encryption will take place only if this option enabled, the type supports password protection
+    /// and the password has been provided.
+    /// - SeeAlso: `setPassword` method and `FileType` enum.
     /// - Note: The password will be required to decode/extract archive items.
     /// - Note: Thread-safe. Must be set before opening.
     /// - Throws: `Exception`.
@@ -311,6 +323,10 @@ public final class Encoder {
     
     
     /// Set encoder will encrypt the header with the list of archive items.
+    ///
+    /// The encryption will take place only if this option enabled, the type supports password protection
+    /// and the password has been provided.
+    /// - SeeAlso: `setPassword` method and `FileType` enum.
     /// - Note: The password will be required to open archive and list the items.
     /// - Note: Thread-safe. Must be set before opening.
     /// - Throws: `Exception`.
@@ -426,7 +442,12 @@ public final class Encoder {
         }
         
         var streamObject = stream.object
-        var encoder = plzma_encoder_create(&streamObject, fileType.type, method.type, contextObject)
+        var encoder: plzma_encoder
+        if stream.isMulti {
+            encoder = plzma_encoder_create_with_multi_stream(&streamObject, fileType.type, method.type, contextObject)
+        } else {
+            encoder = plzma_encoder_create(&streamObject, fileType.type, method.type, contextObject)
+        }
         if let exception = encoder.exception {
             if let unmanagedContext = unmanagedContext {
                 unmanagedContext.release()
@@ -459,6 +480,7 @@ public final class Encoder {
             context.encoder = self
         }
     }
+    
     
     deinit {
         var encoder = object

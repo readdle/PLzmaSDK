@@ -6,7 +6,7 @@
 
 #include "PpmdDecoder.h"
 
-#ifndef EXTRACT_ONLY
+#ifndef Z7_EXTRACT_ONLY
 #include "PpmdEncoder.h"
 #endif
 
@@ -23,6 +23,6 @@ REGISTER_CODEC_E(PPMD,
 
 #if defined(LIBPLZMA_USING_REGISTRATORS)
 uint64_t plzma_registrator_13(void) {
-    return static_cast<uint64_t>(NCompress::NPpmd::g_CodecInfo.Id);
+    return static_cast<uint64_t>(NCompress::NPpmd::g_CodecInfo_PPMD.Id);
 }
 #endif

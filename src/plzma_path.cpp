@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -37,7 +37,7 @@ namespace plzma {
     
     /// Iterator
     
-    enum PathIteratorFlags: uint16_t {
+    enum PathIteratorFlags : uint16_t {
         PathIteratorFlagIsDir           = 1 << 0,
         PathIteratorFlagSkipPathConcat  = 1 << 1,
         PathIteratorFlagDone            = 1 << 2,
@@ -93,12 +93,12 @@ namespace plzma {
             plzma_size_t i = _stack.count();
             if (i > 0) {
                 do {
-                    FindClose(_stack.at(--i));
+                    ::FindClose(_stack.at(--i));
                 } while (i > 0);
                 _stack.clear();
             }
             if (_findHandle != INVALID_HANDLE_VALUE) {
-                FindClose(_findHandle);
+                ::FindClose(_findHandle);
                 _findHandle = INVALID_HANDLE_VALUE;
             }
             clearPaths();
@@ -128,11 +128,11 @@ namespace plzma {
             _flags = 0;
             do {
                 if (!findNextRes) {
-                    findNextRes = FindNextFileW(_findHandle, &_findData);
+                    findNextRes = ::FindNextFileW(_findHandle, &_findData);
                 }
                 if (findNextRes) {
                     findNextRes = FALSE;
-                    if (wcscmp(_findData.cFileName, L".") == 0 || wcscmp(_findData.cFileName, L"..") == 0) { continue; }
+                    if ((::wcscmp(_findData.cFileName, L".") == 0) || (::wcscmp(_findData.cFileName, L"..") == 0)) { continue; }
                     const bool isLink = ((_findData.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) && (_findData.dwReserved0 == IO_REPARSE_TAG_SYMLINK)) ? true : false;
                     if (isLink && !(_mode & plzma_open_dir_mode_follow_symlinks)) { continue; }
                     _component.set(_findData.cFileName);
@@ -141,7 +141,7 @@ namespace plzma {
                         root.append(_component);
                         root.append(L"*");
                         RAIIFindHANDLE subHandle;
-                        subHandle.handle = FindFirstFileW(root.wide(), &_findData);
+                        subHandle.handle = ::FindFirstFileW(root.wide(), &_findData);
                         if (subHandle.handle == INVALID_HANDLE_VALUE) {
                             continue;
                         } else {
@@ -182,7 +182,7 @@ namespace plzma {
                 path.set(L"." CLZMA_SEP_WSTR L"*");
             }
             RAIIFindHANDLE subHandle;
-            subHandle.handle = FindFirstFileW(path.wide(), &_findData);
+            subHandle.handle = ::FindFirstFileW(path.wide(), &_findData);
             if (subHandle.handle == INVALID_HANDLE_VALUE) {
                 if (GetLastError() == ERROR_FILE_NOT_FOUND) { // function fails because no matching files can be found
                     clearPaths();
@@ -217,12 +217,12 @@ namespace plzma {
             plzma_size_t i = _stack.count();
             if (i > 0) {
                 do {
-                    closedir(_stack.at(--i));
+                    ::closedir(_stack.at(--i));
                 } while (i > 0);
                 _stack.clear();
             }
             if (_dir) {
-                closedir(_dir);
+                ::closedir(_dir);
                 _dir = nullptr;
             }
             clearPaths();
@@ -253,8 +253,8 @@ namespace plzma {
             struct dirent d, * dp;
             int readRes;
             do {
-                if ( (readRes = readdir_r(_dir, &d, &dp)) == 0 && dp) {
-                    if (strcmp(d.d_name, ".") == 0 || strcmp(d.d_name, "..") == 0) { continue; }
+                if ( (readRes = ::readdir_r(_dir, &d, &dp)) == 0 && dp) {
+                    if ((::strcmp(d.d_name, ".") == 0) || (::strcmp(d.d_name, "..") == 0)) { continue; }
                     bool isDir = false, isFile = false, isLink = false;
                     rootUtf8 = nullptr;
                     if (d.d_type != DT_UNKNOWN) {
@@ -266,7 +266,7 @@ namespace plzma {
                         root.append(d.d_name);
                         rootUtf8 = root.utf8();
                         struct stat statbuf;
-                        if (access(rootUtf8, F_OK) == 0 && stat(rootUtf8, &statbuf) == 0) {
+                        if ((::access(rootUtf8, F_OK) == 0) && (::stat(rootUtf8, &statbuf) == 0)) {
                             isDir = S_ISDIR(statbuf.st_mode);
                             isFile = S_ISREG(statbuf.st_mode);
                             isLink = S_ISLNK(statbuf.st_mode);
@@ -283,7 +283,7 @@ namespace plzma {
                             rootUtf8 = root.utf8();
                         }
                         RAIIDIR dir;
-                        dir.dir = opendir(rootUtf8);
+                        dir.dir = ::opendir(rootUtf8);
                         if (dir.dir) {
                             _stack.push(_dir);
                             _dir = dir.dir;
@@ -299,7 +299,7 @@ namespace plzma {
                 if (readRes == 0 && !dp && _stack.count() > 0) {
                     _root.removeLastComponent();
                     _path.removeLastComponent();
-                    closedir(_dir);
+                    ::closedir(_dir);
                     _dir = _stack.at(_stack.count() - 1);
                     _stack.pop();
                     dp = &d;
@@ -329,7 +329,7 @@ namespace plzma {
             } else {
                 path = ".";
             }
-            if ( !(_dir = opendir(path)) ) {
+            if ( !(_dir = ::opendir(path)) ) {
                 Exception exception(plzma_error_code_io, nullptr, __FILE__, __LINE__);
                 exception.setWhat("Can't open directory: ", _root.utf8(), nullptr);
                 exception.setReason("No open directory permissions.", nullptr);
@@ -563,11 +563,16 @@ namespace plzma {
     
     bool Path::createDir(const bool withIntermediates) const {
         if (withIntermediates) {
+            if (_size > 0) {
 #if defined(LIBPLZMA_MSC)
-            return (_size > 0) ? createIntermediateDirs<wchar_t>(wide(), _size) : false;
+                const wchar_t * w = wide(); // syncWide, changed '_size'
+                return createIntermediateDirs<wchar_t>(w, _size);
 #elif defined(LIBPLZMA_POSIX)
-            return (_size > 0) ? createIntermediateDirs<char>(utf8(), _cslen) : false;
+                const char * c = utf8(); // syncUtf8, changed '_cslen'
+                return createIntermediateDirs<char>(c, _cslen);
 #endif
+            }
+            return false;
         }
 #if defined(LIBPLZMA_MSC)
         return (_size > 0) ? createSingleDir<wchar_t>(wide()) : false;
@@ -576,18 +581,32 @@ namespace plzma {
 #endif
     }
     
+    bool Path::applyFileTimestamp(const plzma_path_timestamp timestamp) {
+#if defined(LIBPLZMA_MSC)
+        return setFileTimestamp<wchar_t>(wide(), timestamp);
+#elif defined(LIBPLZMA_POSIX)
+        return setFileTimestamp<char>(utf8(), timestamp);
+#endif
+    }
+    
     FILE * LIBPLZMA_NULLABLE Path::openFile(const char * LIBPLZMA_NONNULL mode) const {
 #if defined(LIBPLZMA_MSC)
         if (_size > 0) {
             wchar_t wmode[32] = { 0 }; // more than enough for a max mode: "w+b, ccs=UNICODE"
-            for (size_t i = 0, n = strlen(mode); ((i < n) && (i < 31)); i++) {
+            for (size_t i = 0, n = ::strlen(mode); ((i < n) && (i < 31)); i++) {
                 wmode[i] = static_cast<wchar_t>(mode[i]);
             }
+#if defined(HAVE__WFOPEN_S)
+            FILE * f = nullptr;
+            const errno_t err = ::_wfopen_s(&f, wide(), wmode);
+            return (err == 0) ? f : nullptr;
+#else
             return _wfopen(wide(), wmode);
+#endif // !HAVE__WFOPEN_S
         }
         return nullptr;
 #elif defined(LIBPLZMA_POSIX)
-        return (_size > 0) ? fopen(utf8(), mode) : nullptr;
+        return (_size > 0) ? ::fopen(utf8(), mode) : nullptr;
 #endif
     }
     
@@ -601,9 +620,13 @@ namespace plzma {
     
     bool Path::operator == (const Path & path) const {
 #if defined(LIBPLZMA_MSC)
-        return pathsAreEqual<wchar_t>(wide(), path.wide(), _size, path._size);
+        const wchar_t * a = wide();       // syncWide
+        const wchar_t * b = path.wide();  // syncWide
+        return pathsAreEqual<wchar_t>(a, b, _size, path._size);
 #elif defined(LIBPLZMA_POSIX)
-        return pathsAreEqual<char>(utf8(), path.utf8(), _cslen, path._cslen);
+        const char * a = utf8();        // syncUtf8
+        const char * b = path.utf8();   // syncUtf8
+        return pathsAreEqual<char>(a, b, _cslen, path._cslen);
 #endif
     }
     
@@ -653,7 +676,7 @@ namespace plzma {
         Path path;
 #if defined(__APPLE__) && defined(_CS_DARWIN_USER_TEMP_DIR)
         char buff[PATH_MAX];
-        const size_t res = confstr(_CS_DARWIN_USER_TEMP_DIR, buff, PATH_MAX);
+        const size_t res = ::confstr(_CS_DARWIN_USER_TEMP_DIR, buff, PATH_MAX);
         if (res > 0 && res < PATH_MAX && initializeTmpPath<char>(buff, "libplzma", path)) {
             return path;
         }
@@ -661,18 +684,51 @@ namespace plzma {
 #if defined(LIBPLZMA_MSC)
         static const wchar_t * const wevs[4] = { L"TMPDIR", L"TEMPDIR", L"TEMP", L"TMP" };
         for (size_t i = 0; i < 4; i++) {
-            const wchar_t * p = _wgetenv(wevs[i]);
+#if defined(HAVE__WDUPENV_S)
+            wchar_t * p = nullptr;
+            size_t len = 0;
+            const errno_t err = ::_wdupenv_s(&p, &len, wevs[i]);
+            if ((err == 0) && p && initializeTmpPath<wchar_t>(p, L"libplzma", path)) {
+                ::free(p);
+                return path;
+            }
+            if (p) {
+                ::free(p);
+            }
+#else
+            const wchar_t * p = ::_wgetenv(wevs[i]);
             if (p && initializeTmpPath<wchar_t>(p, L"libplzma", path)) {
                 return path;
             }
+#endif // !HAVE__WDUPENV_S
         }
 #endif
         static const char * const cevs[4] = { "TMPDIR", "TEMPDIR", "TEMP", "TMP" };
         for (size_t i = 0; i < 4; i++) {
-            char * p = getenv(cevs[i]);
+#if defined(LIBPLZMA_MSC)
+#if defined(HAVE__DUPENV_S)
+            char * p = nullptr;
+            size_t len = 0;
+            const errno_t err = ::_dupenv_s(&p, &len, cevs[i]);
+            if ((err == 0) && p && initializeTmpPath<char>(p, "libplzma", path)) {
+                ::free(p);
+                return path;
+            }
+            if (p) {
+                ::free(p);
+            }
+#else
+            char * p = ::getenv(cevs[i]);
             if (p && initializeTmpPath<char>(p, "libplzma", path)) {
                 return path;
             }
+#endif // !HAVE__DUPENV_S
+#else
+            char * p = ::getenv(cevs[i]);
+            if (p && initializeTmpPath<char>(p, "libplzma", path)) {
+                return path;
+            }
+#endif
         }
 #if !defined(LIBPLZMA_OS_WINDOWS)
         if (initializeTmpPath<char>("/tmp", "libplzma", path)) {
@@ -845,6 +901,12 @@ bool plzma_path_create_dir(plzma_path * LIBPLZMA_NONNULL path, const bool with_i
     LIBPLZMA_C_BINDINGS_OBJECT_EXEC_CATCH_RETURN(path, false)
 }
 
+bool plzma_path_apply_file_timestamp(plzma_path * LIBPLZMA_NONNULL path, const plzma_path_timestamp timestamp) {
+    LIBPLZMA_C_BINDINGS_OBJECT_EXEC_TRY_RETURN(path, false)
+    return static_cast<Path *>(path->object)->applyFileTimestamp(timestamp);
+    LIBPLZMA_C_BINDINGS_OBJECT_EXEC_CATCH_RETURN(path, false)
+}
+
 FILE * LIBPLZMA_NULLABLE plzma_path_open_file(plzma_path * LIBPLZMA_NONNULL path, const char * LIBPLZMA_NONNULL mode) {
     LIBPLZMA_C_BINDINGS_OBJECT_EXEC_TRY_RETURN(path, nullptr)
     return static_cast<Path *>(path->object)->openFile(mode);
@@ -908,4 +970,4 @@ void plzma_path_iterator_release(plzma_path_iterator * LIBPLZMA_NULLABLE iterato
     iterator->object = nullptr;
 }
 
-#endif // # !LIBPLZMA_NO_C_BINDINGS
+#endif // !LIBPLZMA_NO_C_BINDINGS

@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@
 #include "plzma_in_streams.hpp"
 #include "plzma_common.hpp"
 #include "plzma_open_callback.hpp"
+#include "plzma_c_bindings_private.hpp"
 
 #include <stdint.h>
 #include <limits.h>
@@ -40,31 +41,39 @@ namespace plzma {
     
     void EncoderImpl::retain() {
 #if defined(LIBPLZMA_THREAD_UNSAFE)
-        LIBPLZMA_RETAIN_IMPL(__m_RefCount)
+        LIBPLZMA_RETAIN_IMPL(_m_RefCount)
 #else
-        LIBPLZMA_RETAIN_LOCKED_IMPL(__m_RefCount, _mutex)
+        LIBPLZMA_RETAIN_LOCKED_IMPL(_m_RefCount, _mutex)
 #endif
     }
     
     void EncoderImpl::release() {
 #if defined(LIBPLZMA_THREAD_UNSAFE)
-        LIBPLZMA_RELEASE_IMPL(__m_RefCount)
+        LIBPLZMA_RELEASE_IMPL(_m_RefCount)
 #else
-        LIBPLZMA_RELEASE_LOCKED_IMPL(__m_RefCount, _mutex)
+        LIBPLZMA_RELEASE_LOCKED_IMPL(_m_RefCount, _mutex)
 #endif
     }
     
     // IProgress
-    STDMETHODIMP EncoderImpl::SetTotal(UInt64 size) {
+    STDMETHODIMP EncoderImpl::SetTotal(UInt64 size) throw() {
+#if defined(LIBPLZMA_NO_PROGRESS)
+        return S_OK;
+#else
         return setProgressTotal(size);
+#endif
     }
     
-    STDMETHODIMP EncoderImpl::SetCompleted(const UInt64 *completeValue) {
+    STDMETHODIMP EncoderImpl::SetCompleted(const UInt64 *completeValue) throw() {
+#if defined(LIBPLZMA_NO_PROGRESS)
+        return S_OK;
+#else
         return completeValue ? setProgressCompleted(*completeValue) : S_OK;
+#endif
     }
     
     // IUpdateCallback2
-    STDMETHODIMP EncoderImpl::GetUpdateItemInfo(UInt32 index, Int32 * newData, Int32 * newProperties, UInt32 * indexInArchive) {
+    STDMETHODIMP EncoderImpl::GetUpdateItemInfo(UInt32 index, Int32 * newData, Int32 * newProperties, UInt32 * indexInArchive) throw() {
         try {
             LIBPLZMA_LOCKGUARD(lock, _mutex)
             if (_result != S_OK) {
@@ -93,7 +102,7 @@ namespace plzma {
         return S_OK;
     }
     
-    STDMETHODIMP EncoderImpl::GetProperty(UInt32 index, PROPID propID, PROPVARIANT * value) {
+    STDMETHODIMP EncoderImpl::GetProperty(UInt32 index, PROPID propID, PROPVARIANT * value) throw() {
         try {
             LIBPLZMA_LOCKGUARD(lock, _mutex)
             if (_result != S_OK) {
@@ -108,9 +117,9 @@ namespace plzma {
                 case kpidIsDir: prop = false; break;
                 case kpidSize: prop = _source.stat.size; break;
                 //case kpidAttrib: prop = dirItem.Attrib; break; // 9
-                case kpidCTime: prop = UnixTimeToFILETIME(_source.stat.creation); break;
-                case kpidATime: prop = UnixTimeToFILETIME(_source.stat.last_access); break;
-                case kpidMTime: prop = UnixTimeToFILETIME(_source.stat.last_modification); break;
+                case kpidCTime: prop = UnixTimeToFILETIME(_source.stat.timestamp.creation); break;
+                case kpidATime: prop = UnixTimeToFILETIME(_source.stat.timestamp.last_access); break;
+                case kpidMTime: prop = UnixTimeToFILETIME(_source.stat.timestamp.last_modification); break;
                 
                 // Tar
                 case kpidSymLink:
@@ -119,9 +128,9 @@ namespace plzma {
                         prop = L"";
                     }
                     break;
-                case kpidPosixAttrib: // 53, tar
-                case kpidUser: // 25, tar
-                case kpidGroup: // 26, tar
+                case kpidPosixAttrib:   // 53, tar
+                case kpidUser:          // 25, tar
+                case kpidGroup:         // 26, tar
                     break;
                 default:
                     break;
@@ -145,7 +154,7 @@ namespace plzma {
         return S_OK;
     }
     
-    STDMETHODIMP EncoderImpl::GetStream(UInt32 index, ISequentialInStream ** inStream) {
+    STDMETHODIMP EncoderImpl::GetStream(UInt32 index, ISequentialInStream ** inStream) throw() {
         try {
             LIBPLZMA_LOCKGUARD(lock, _mutex)
             if (_result != S_OK) {
@@ -163,7 +172,9 @@ namespace plzma {
             *inStream = baseStream;
             baseStream->open();
             
+#if !defined(LIBPLZMA_NO_PROGRESS)
             _progress->setPath(_source.archivePath);
+#endif
             
             return S_OK;
         } catch (const Exception & exception) {
@@ -183,7 +194,7 @@ namespace plzma {
         return S_OK;
     }
     
-    STDMETHODIMP EncoderImpl::SetOperationResult(Int32 operationResult) {
+    STDMETHODIMP EncoderImpl::SetOperationResult(Int32 operationResult) throw() {
         try {
             LIBPLZMA_LOCKGUARD(lock, _mutex)
             if (_result == S_OK) {
@@ -215,16 +226,16 @@ namespace plzma {
         return S_OK;
     }
     
-    STDMETHODIMP EncoderImpl::GetVolumeSize(UInt32 index, UInt64 * size) {
+    STDMETHODIMP EncoderImpl::GetVolumeSize(UInt32 index, UInt64 * size) throw() {
         return S_OK; // unused
     }
     
-    STDMETHODIMP EncoderImpl::GetVolumeStream(UInt32 index, ISequentialOutStream ** volumeStream) {
+    STDMETHODIMP EncoderImpl::GetVolumeStream(UInt32 index, ISequentialOutStream ** volumeStream) throw() {
         return S_OK; // unused
     }
     
     // ICryptoGetTextPassword
-    STDMETHODIMP EncoderImpl::CryptoGetTextPassword(BSTR * password) {
+    STDMETHODIMP EncoderImpl::CryptoGetTextPassword(BSTR * password) throw() {
         if (hasOption(OptionRequirePassword)) {
             return getTextPassword(nullptr, password);
         }
@@ -232,7 +243,7 @@ namespace plzma {
     }
     
     // ICryptoGetTextPassword2
-    STDMETHODIMP EncoderImpl::CryptoGetTextPassword2(Int32 * passwordIsDefined, BSTR * password) {
+    STDMETHODIMP EncoderImpl::CryptoGetTextPassword2(Int32 * passwordIsDefined, BSTR * password) throw() {
         if (hasOption(OptionRequirePassword)) {
             return getTextPassword(passwordIsDefined, password);
         }
@@ -241,19 +252,29 @@ namespace plzma {
     }
     
     void EncoderImpl::setPassword(const wchar_t * password) {
+#if defined(LIBPLZMA_NO_CRYPTO)
+        throw Exception(plzma_error_code_invalid_arguments, LIBPLZMA_NO_CRYPTO_EXCEPTION_WHAT, __FILE__, __LINE__);
+#else
         LIBPLZMA_LOCKGUARD(lock, _mutex)
         _password.clear(plzma_erase_zero);
         _password.set(password);
+#endif
     }
     
     void EncoderImpl::setPassword(const char * password) {
+#if defined(LIBPLZMA_NO_CRYPTO)
+        throw Exception(plzma_error_code_invalid_arguments, LIBPLZMA_NO_CRYPTO_EXCEPTION_WHAT, __FILE__, __LINE__);
+#else
         LIBPLZMA_LOCKGUARD(lock, _mutex)
         _password.clear(plzma_erase_zero);
         _password.set(password);
+#endif
     }
     
     void EncoderImpl::setProgressDelegate(ProgressDelegate * delegate) {
+#if !defined(LIBPLZMA_NO_PROGRESS)
         _progress->setDelegate(delegate);
+#endif
     }
     
     void EncoderImpl::add(const Path & path, const plzma_open_dir_mode_t openDirMode, const Path & archivePath) {
@@ -309,8 +330,8 @@ namespace plzma {
             addedStream.stream = stream.cast<InStreamBase>();
             addedStream.archivePath = archivePath;
             plzma_path_stat stat;
-            stat.creation = stat.last_access = stat.last_modification = time(nullptr);
             stat.size = 0;
+            stat.timestamp = plzma_path_timestamp_now();
             addedStream.stat = stat;
             _streams.push(static_cast<AddedStream &&>(addedStream));
         } else {
@@ -344,7 +365,7 @@ namespace plzma {
             } else {
                 AddedFile item;
                 item.path = static_cast<Path &&>(addedPath.path); // full path, move
-                item.archivePath = static_cast<Path &&>(rootArchivePath); // move
+                item.archivePath = static_cast<Path &&>(rootArchivePath); // move, no longer needed
                 item.stat = item.path.stat();
                 _files.push(static_cast<AddedFile &&>(item));
                 itemsCount++;
@@ -425,6 +446,19 @@ namespace plzma {
             
             L"hcf"  // compress header full, true - add, false - don't add/ignore
         };
+        
+#if defined(LIBPLZMA_NO_CRYPTO)
+        if (_options & OptionEncryptHeader) {
+            Exception exception(plzma_error_code_invalid_arguments, "Can't use 'encrypt header' property.", __FILE__, __LINE__);
+            exception.setReason("The crypto functionality disabled.", nullptr);
+            throw exception;
+        }
+        if (_options & OptionEncryptContent) {
+            Exception exception(plzma_error_code_invalid_arguments, "Can't use 'encrypt content' property.", __FILE__, __LINE__);
+            exception.setReason("The crypto functionality disabled.", nullptr);
+            throw exception;
+        }
+#endif
         
         CPropVariant values[settingsCount] = {
             CPropVariant(static_cast<UInt32>(0)),                           // method dummy value
@@ -544,11 +578,10 @@ namespace plzma {
         }
         if (errorNumber) {
             Exception exception(plzma_error_code_invalid_arguments, nullptr, __FILE__, __LINE__);
-            const int buffLen = 32;
-            char tmpBuff[buffLen];
-            snprintf(tmpBuff, buffLen, "%llu", (unsigned long long)itemsCount);
-            exception.setReason("The number of items: ", tmpBuff, nullptr);
-            exception.setWhat(errorNumber == 1 ? "The 'xz' type supports only one item." : "The number of items is more than supported.", nullptr);
+            char reason[128];
+            snprintf(reason, 128, "The number of items: %llu", static_cast<unsigned long long>(itemsCount));
+            exception.setReason(reason, nullptr);
+            exception.setWhat(errorNumber == 1 ? "The 'xz' type supports only one item." : "The number of items is greater then supported.", nullptr);
             throw exception;
         }
         
@@ -563,7 +596,7 @@ namespace plzma {
     }
     
     bool EncoderImpl::compress() {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         if (!_archive || _opening || _compressing || _result == E_ABORT) {
             return false;
         }
@@ -576,11 +609,13 @@ namespace plzma {
         }
         
         _compressing = true;
+#if !defined(LIBPLZMA_NO_PROGRESS)
         _progress->setPartsCount(1);
         _progress->startPart();
-        LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+#endif
+        LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
         result = _archive->UpdateItems(_stream, _itemsCount, this);
-        LIBPLZMA_LOCKGUARD_LOCK(lock)
+        LIBPLZMA_UNIQUE_LOCK_LOCK(lock)
         
         _compressing = false;
         _stream->close();
@@ -593,6 +628,12 @@ namespace plzma {
                 Exception localException(static_cast<Exception &&>(*_exception));
                 delete _exception;
                 _exception = nullptr;
+                throw localException;
+            }
+            Exception * exception = _stream->takeException();
+            if (exception) {
+                Exception localException(static_cast<Exception &&>(*exception));
+                delete exception;
                 throw localException;
             }
             throw Exception(plzma_error_code_internal, "Unknown compress error.", __FILE__, __LINE__);
@@ -653,11 +694,15 @@ namespace plzma {
     
 #if !defined(LIBPLZMA_NO_C_BINDINGS)
     void EncoderImpl::setUtf8Callback(plzma_progress_delegate_utf8_callback LIBPLZMA_NULLABLE callback) {
+#if !defined(LIBPLZMA_NO_PROGRESS)
         _progress->setUtf8Callback(callback);
+#endif
     }
     
     void EncoderImpl::setWideCallback(plzma_progress_delegate_wide_callback LIBPLZMA_NULLABLE callback) {
+#if !defined(LIBPLZMA_NO_PROGRESS)
         _progress->setWideCallback(callback);
+#endif
     }
 #endif
     
@@ -669,7 +714,9 @@ namespace plzma {
         _type(type),
         _method(method) {
             plzma::initialize();
+#if !defined(LIBPLZMA_NO_PROGRESS)
             _progress = makeShared<Progress>(context);
+#endif
             // docs
             _options |= (OptionSolid | OptionCompressHeader | OptionCompressHeaderFull);
             _options |= (OptionStoreCTime | OptionStoreMTime | OptionStoreATime);
@@ -691,10 +738,22 @@ namespace plzma {
         throw Exception(plzma_error_code_invalid_arguments, "No output stream.", __FILE__, __LINE__);
     }
 
+    SharedPtr<Encoder> makeSharedEncoder(const SharedPtr<OutMultiStream> & stream,
+                                         const plzma_file_type type,
+                                         const plzma_method method,
+                                         const plzma_context context) {
+        if (type != plzma_file_type_7z) {
+            throw Exception(plzma_error_code_invalid_arguments, "Currently only 7-zip type archives supports multi streams.", __FILE__, __LINE__);
+        }
+        auto baseStream = stream.cast<OutStreamBase>();
+        if (baseStream) {
+            return SharedPtr<Encoder>(new EncoderImpl(CMyComPtr<OutStreamBase>(baseStream.get()), type, method, context));
+        }
+        throw Exception(plzma_error_code_invalid_arguments, "No output stream.", __FILE__, __LINE__);
+    }
+
 } // namespace plzma
 
-
-#include "plzma_c_bindings_private.hpp"
 
 #if !defined(LIBPLZMA_NO_C_BINDINGS)
 
@@ -706,12 +765,30 @@ plzma_encoder plzma_encoder_create(plzma_out_stream * LIBPLZMA_NONNULL stream,
                                    const plzma_context context) {
     LIBPLZMA_C_BINDINGS_CREATE_OBJECT_FROM_TRY(plzma_decoder, stream)
     SharedPtr<OutStream> outStream(static_cast<OutStream *>(stream->object));
-    auto baseStream = outStream.cast<OutStreamBase>();
-    if (!baseStream) {
+    auto baseOutStream = outStream.cast<OutStreamBase>();
+    if (!baseOutStream) {
         throw Exception(plzma_error_code_invalid_arguments, "No output stream.", __FILE__, __LINE__);
     }
-    SharedPtr<EncoderImpl> encoderImpl(new EncoderImpl(CMyComPtr<OutStreamBase>(baseStream.get()), type, method, context));
-    createdCObject.object = static_cast<void *>(encoderImpl.take());
+    SharedPtr<EncoderImpl> encoder(new EncoderImpl(CMyComPtr<OutStreamBase>(baseOutStream.get()), type, method, context));
+    createdCObject.object = static_cast<void *>(encoder.take());
+    LIBPLZMA_C_BINDINGS_CREATE_OBJECT_CATCH
+}
+
+plzma_encoder plzma_encoder_create_with_multi_stream(plzma_out_multi_stream * LIBPLZMA_NONNULL stream,
+                                                     const plzma_file_type type,
+                                                     const plzma_method method,
+                                                     const plzma_context context) {
+    LIBPLZMA_C_BINDINGS_CREATE_OBJECT_FROM_TRY(plzma_decoder, stream)
+    if (type != plzma_file_type_7z) {
+        throw Exception(plzma_error_code_invalid_arguments, "Currently only 7-zip type archives supports multi streams.", __FILE__, __LINE__);
+    }
+    SharedPtr<OutMultiStream> outStream(static_cast<OutMultiStream *>(stream->object));
+    auto baseOutStream = outStream.cast<OutStreamBase>();
+    if (!baseOutStream) {
+        throw Exception(plzma_error_code_invalid_arguments, "No output stream.", __FILE__, __LINE__);
+    }
+    SharedPtr<EncoderImpl> encoder(new EncoderImpl(CMyComPtr<OutStreamBase>(baseOutStream.get()), type, method, context));
+    createdCObject.object = static_cast<void *>(encoder.take());
     LIBPLZMA_C_BINDINGS_CREATE_OBJECT_CATCH
 }
 

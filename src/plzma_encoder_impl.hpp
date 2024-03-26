@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -59,7 +59,7 @@ namespace plzma {
         public CMyUnknownImp {
     private:
         friend struct SharedPtr<EncoderImpl>;
-        enum Option: uint16_t {
+        enum Option : uint16_t {
             OptionSolid                 = 1 << 0,
             OptionCompressHeader        = 1 << 1,
             OptionCompressHeaderFull    = 1 << 2,
@@ -78,7 +78,6 @@ namespace plzma {
             bool isDir = false;
         };
         struct AddedFile final {
-        public:
             Path path;
             Path archivePath;
             plzma_path_stat stat;
@@ -121,8 +120,9 @@ namespace plzma {
         bool _opening = false;
         bool _compressing = false;
         
-        virtual void retain();
-        virtual void release();
+        virtual void retain() override final;
+        virtual void release() override final;
+        
         uint64_t processAddedPaths();
         HRESULT setupSource(UInt32 index);
         void applySettings7z(ISetProperties * properties);
@@ -135,52 +135,52 @@ namespace plzma {
         LIBPLZMA_NON_COPYABLE_NON_MOVABLE(EncoderImpl)
         
     public:
-        MY_UNKNOWN_IMP3(IArchiveUpdateCallback2, ICryptoGetTextPassword, ICryptoGetTextPassword2)
+        Z7_COM_UNKNOWN_IMP_3(IArchiveUpdateCallback2, ICryptoGetTextPassword, ICryptoGetTextPassword2)
         
         // IProgress
-        STDMETHOD(SetTotal)(UInt64 size);
-        STDMETHOD(SetCompleted)(const UInt64 * completeValue);
+        STDMETHOD(SetTotal)(UInt64 size) throw() override final;
+        STDMETHOD(SetCompleted)(const UInt64 * completeValue) throw() override final;
         
         // IUpdateCallback2
-        STDMETHOD(GetUpdateItemInfo)(UInt32 index, Int32 * newData, Int32 * newProperties, UInt32 * indexInArchive);
-        STDMETHOD(GetProperty)(UInt32 index, PROPID propID, PROPVARIANT * value);
-        STDMETHOD(GetStream)(UInt32 index, ISequentialInStream ** inStream);
-        STDMETHOD(SetOperationResult)(Int32 operationResult);
-        STDMETHOD(GetVolumeSize)(UInt32 index, UInt64 * size);
-        STDMETHOD(GetVolumeStream)(UInt32 index, ISequentialOutStream ** volumeStream);
+        STDMETHOD(GetUpdateItemInfo)(UInt32 index, Int32 * newData, Int32 * newProperties, UInt32 * indexInArchive) throw() override final;
+        STDMETHOD(GetProperty)(UInt32 index, PROPID propID, PROPVARIANT * value) throw() override final;
+        STDMETHOD(GetStream)(UInt32 index, ISequentialInStream ** inStream) throw() override final;
+        STDMETHOD(SetOperationResult)(Int32 operationResult) throw() override final;
+        STDMETHOD(GetVolumeSize)(UInt32 index, UInt64 * size) throw() override final;
+        STDMETHOD(GetVolumeStream)(UInt32 index, ISequentialOutStream ** volumeStream) throw() override final;
         
         // ICryptoGetTextPassword
-        STDMETHOD(CryptoGetTextPassword)(BSTR * password);
+        STDMETHOD(CryptoGetTextPassword)(BSTR * password) throw() override final;
         
         // ICryptoGetTextPassword2
-        STDMETHOD(CryptoGetTextPassword2)(Int32 * passwordIsDefined, BSTR * password);
+        STDMETHOD(CryptoGetTextPassword2)(Int32 * passwordIsDefined, BSTR * password) throw() override final;
         
-        virtual void setPassword(const wchar_t * password);
-        virtual void setPassword(const char * password);
-        virtual void setProgressDelegate(ProgressDelegate * delegate);
-        virtual void add(const Path & path, const plzma_open_dir_mode_t openDirMode = 0, const Path & archivePath = Path());
-        virtual void add(const SharedPtr<InStream> & stream, const Path & archivePath);
-        virtual bool open();
-        virtual void abort();
-        virtual bool compress();
-        virtual bool shouldCreateSolidArchive() const;
-        virtual void setShouldCreateSolidArchive(const bool solid);
-        virtual uint8_t compressionLevel() const;
-        virtual void setCompressionLevel(const uint8_t level);
-        virtual bool shouldCompressHeader() const;
-        virtual void setShouldCompressHeader(const bool compress);
-        virtual bool shouldCompressHeaderFull() const;
-        virtual void setShouldCompressHeaderFull(const bool compress);
-        virtual bool shouldEncryptContent() const;
-        virtual void setShouldEncryptContent(const bool encrypt);
-        virtual bool shouldEncryptHeader() const;
-        virtual void setShouldEncryptHeader(const bool encrypt);
-        virtual bool shouldStoreCreationTime() const;
-        virtual void setShouldStoreCreationTime(const bool store);
-        virtual bool shouldStoreAccessTime() const;
-        virtual void setShouldStoreAccessTime(const bool store);
-        virtual bool shouldStoreModificationTime() const;
-        virtual void setShouldStoreModificationTime(const bool store);
+        virtual void setPassword(const wchar_t * password) override final;
+        virtual void setPassword(const char * password) override final;
+        virtual void setProgressDelegate(ProgressDelegate * delegate) override final;
+        virtual void add(const Path & path, const plzma_open_dir_mode_t openDirMode = 0, const Path & archivePath = Path()) override final;
+        virtual void add(const SharedPtr<InStream> & stream, const Path & archivePath) override final;
+        virtual bool open() override final;
+        virtual void abort() override final;
+        virtual bool compress() override final;
+        virtual bool shouldCreateSolidArchive() const override final;
+        virtual void setShouldCreateSolidArchive(const bool solid) override final;
+        virtual uint8_t compressionLevel() const override final;
+        virtual void setCompressionLevel(const uint8_t level) override final;
+        virtual bool shouldCompressHeader() const override final;
+        virtual void setShouldCompressHeader(const bool compress) override final;
+        virtual bool shouldCompressHeaderFull() const override final;
+        virtual void setShouldCompressHeaderFull(const bool compress) override final;
+        virtual bool shouldEncryptContent() const override final;
+        virtual void setShouldEncryptContent(const bool encrypt) override final;
+        virtual bool shouldEncryptHeader() const override final;
+        virtual void setShouldEncryptHeader(const bool encrypt) override final;
+        virtual bool shouldStoreCreationTime() const override final;
+        virtual void setShouldStoreCreationTime(const bool store) override final;
+        virtual bool shouldStoreAccessTime() const override final;
+        virtual void setShouldStoreAccessTime(const bool store) override final;
+        virtual bool shouldStoreModificationTime() const override final;
+        virtual void setShouldStoreModificationTime(const bool store) override final;
         
 #if !defined(LIBPLZMA_NO_C_BINDINGS)
         void setUtf8Callback(plzma_progress_delegate_utf8_callback callback);

@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,7 @@
 
 #include "../libplzma.hpp"
 #include "plzma_private.hpp"
+#include "plzma_c_bindings_private.hpp"
 
 #include <stdint.h>
 #include <limits.h>
@@ -36,10 +37,6 @@
 
 #if defined(LIBPLZMA_MSC)
 #include <malloc.h>
-#endif
-
-#if __has_include(<CoreFoundation/CoreFoundation.h>)
-#include <CoreFoundation/CoreFoundation.h>
 #endif
 
 #if defined(BUILDING_NODE_EXTENSION)
@@ -51,13 +48,33 @@
 #define RAND_MAX 0x7fffffff
 #endif
 
+#if defined(__clang__)
+  #if __has_feature(cxx_rtti)
+    #define RTTI_ENABLED 1
+  #endif
+#elif defined(__GNUG__)
+  #if defined(__GXX_RTTI)
+    #define RTTI_ENABLED 1
+  #endif
+#elif defined(_MSC_VER)
+  #if defined(_CPPRTTI)
+    #define RTTI_ENABLED 1
+  #endif
+#endif
+
+plzma_path_timestamp plzma_path_timestamp_now(void) {
+    plzma_path_timestamp t;
+    t.last_access = t.last_modification = t.creation = ::time(NULL);
+    return t;
+}
+
 int32_t plzma_random_in_range(const int32_t low, const int32_t up) {
     static bool notInitalized = true;
     if (notInitalized) {
         notInitalized = false;
-        srand(static_cast<unsigned int>(time(nullptr)));
+        ::srand(static_cast<unsigned int>(::time(nullptr)));
     }
-    return (rand() % (up - low + 1)) + low;
+    return (::rand() % (up - low + 1)) + low;
 }
 
 /// Memory
@@ -81,52 +98,52 @@ void * LIBPLZMA_NULLABLE plzma_malloc(size_t size) {
 void * LIBPLZMA_NULLABLE plzma_malloc_zero(size_t size) {
     void * mem = plzma_malloc(size);
     if (mem) {
-        memset(mem, 0, size);
+        ::memset(mem, 0, size);
     }
     return mem;
 }
 
 void * LIBPLZMA_NULLABLE plzma_realloc(void * LIBPLZMA_NULLABLE mem, size_t new_size) {
-    return realloc(mem, new_size);
+    return ::realloc(mem, new_size);
 }
 
 void plzma_free(void * LIBPLZMA_NULLABLE mem) {
     if (mem) {
-        free(mem);
+        ::free(mem);
     }
 }
 
 #if 0
 void * LIBPLZMA_NULLABLE plzma_aligned_malloc(size_t size, size_t alignment) {
 #if defined(LIBPLZMA_MSC)
-    return _aligned_malloc(size, alignment);
+    return ::_aligned_malloc(size, alignment);
 #elif defined(LIBPLZMA_POSIX)
 #if defined(__ANDROID__) || defined(__ANDROID_API__)
     // http://code.google.com/p/android/issues/detail?id=35391
-    return malloc(size);
+    return ::malloc(size);
 #else
     void * ptr = NULL;
-    return posix_memalign(&ptr, alignment, size) ? malloc(size) : ptr;
+    return ::posix_memalign(&ptr, alignment, size) ? malloc(size) : ptr;
 #endif
 #else
-    return malloc(size);
+    return ::malloc(size);
 #endif
 }
 
 void * LIBPLZMA_NULLABLE plzma_aligned_realloc(void * LIBPLZMA_NULLABLE mem, size_t new_size, size_t alignment) {
 #if defined(LIBPLZMA_MSC)
-    return _aligned_realloc(mem, new_size, alignment);
+    return ::_aligned_realloc(mem, new_size, alignment);
 #else
-    return realloc(mem, new_size);
+    return ::realloc(mem, new_size);
 #endif
 }
 
 void plzma_aligned_free(void * LIBPLZMA_NULLABLE mem) {
     if (mem) {
 #if defined(LIBPLZMA_MSC)
-        _aligned_free(mem);
+        ::_aligned_free(mem);
 #else
-        free(mem);
+        ::free(mem);
 #endif
     }
 }
@@ -138,11 +155,11 @@ const char * LIBPLZMA_NONNULL plzma_empty_cstring = "";
 const wchar_t * LIBPLZMA_NONNULL plzma_empty_wstring = L"";
 
 char * LIBPLZMA_NULLABLE plzma_cstring_copy(const char * LIBPLZMA_NULLABLE str) {
-    const size_t len = str ? strlen(str) : 0;
+    const size_t len = str ? ::strlen(str) : 0;
     if (len > 0) {
         char * dst = static_cast<char *>(plzma_malloc(sizeof(char) * (len + 1)));
         if (dst) {
-            memcpy(dst, str, sizeof(char) * len);
+            ::memcpy(dst, str, sizeof(char) * len);
             dst[len] = 0;
             return dst;
         }
@@ -152,13 +169,13 @@ char * LIBPLZMA_NULLABLE plzma_cstring_copy(const char * LIBPLZMA_NULLABLE str) 
 
 char * LIBPLZMA_NULLABLE plzma_cstring_append(char * LIBPLZMA_NULLABLE source, const char * LIBPLZMA_NULLABLE str) {
     if (source) {
-        const size_t appLen = str ? strlen(str) : 0;
+        const size_t appLen = str ? ::strlen(str) : 0;
         if (appLen > 0) {
-            const size_t srcLen = strlen(source);
+            const size_t srcLen = ::strlen(source);
             const size_t dstLen = srcLen + appLen;
             char * dst = static_cast<char *>(plzma_realloc(source, sizeof(char) * (dstLen + 1)));
             if (dst) {
-                memcpy(dst + srcLen, str, appLen);
+                ::memcpy(dst + srcLen, str, appLen);
                 dst[dstLen] = 0;
                 return dst;
             }
@@ -183,7 +200,7 @@ const char * LIBPLZMA_NONNULL plzma_version(void) {
     LIBPLZMA_TOSTRING(LIBPLZMA_VERSION_MINOR) "."
     LIBPLZMA_TOSTRING(LIBPLZMA_VERSION_PATCH)
 #if defined(LIBPLZMA_VERSION_BUILD)
-    "." LIBPLZMA_TOSTRING(LIBPLZMA_VERSION_BUILD)
+    " (" LIBPLZMA_TOSTRING(LIBPLZMA_VERSION_BUILD) ")"
 #endif
     
 #if defined(LIBPLZMA_STATIC)
@@ -204,6 +221,16 @@ const char * LIBPLZMA_NONNULL plzma_version(void) {
     " : Swift Package"
 #endif
     
+#if defined(LIBPLZMA_HAVE_STD)
+    " : std"
+#endif
+    
+#if defined(RTTI_ENABLED)
+    " : rtti"
+#elif defined(LIBPLZMA_NO_CPP_RTTI)
+    " : no rtti"
+#endif
+    
 #if defined(__TIMESTAMP__)
     " : " __TIMESTAMP__
 #else
@@ -214,7 +241,7 @@ const char * LIBPLZMA_NONNULL plzma_version(void) {
     " : " __TIME__
 #endif
 #endif
-
+    
 #if defined(_MSC_FULL_VER)
     " : " LIBPLZMA_TOSTRING(_MSC_FULL_VER)
 #elif defined(_MSC_VER)
@@ -355,6 +382,10 @@ const char * LIBPLZMA_NONNULL plzma_version(void) {
     
 #if defined(LIBPLZMA_NO_C_BINDINGS)
     " : no C bindings"
+#endif
+    
+#if defined(LIBPLZMA_NO_CRYPTO)
+    " : no crypto"
 #endif
     
 #if defined(LIBPLZMA_NO_TAR)
@@ -519,16 +550,17 @@ plzma_size_t plzma_item_array_count(const plzma_item_array * LIBPLZMA_NONNULL ar
 }
 
 plzma_item plzma_item_array_at(plzma_item_array * LIBPLZMA_NONNULL array,
-                                   const plzma_size_t index) {
+                               const plzma_size_t index) {
     LIBPLZMA_C_BINDINGS_CREATE_OBJECT_FROM_TRY(plzma_item, array)
     auto item = static_cast<const ItemArray *>(array->object)->at(index);
     createdCObject.object = static_cast<void *>(item.take());
-    return createdCObject;
-    LIBPLZMA_C_BINDINGS_OBJECT_EXEC_CATCH_RETURN(array, createdCObject)
+    LIBPLZMA_C_BINDINGS_CREATE_OBJECT_CATCH
 }
 
 void plzma_item_array_sort(plzma_item_array * LIBPLZMA_NONNULL array) {
-    if (!array->exception) { static_cast<ItemArray *>(array->object)->sort(); }
+    if (!array->exception) {
+        static_cast<ItemArray *>(array->object)->sort();
+    }
 }
 
 void plzma_item_array_release(plzma_item_array * LIBPLZMA_NONNULL array) {
@@ -564,21 +596,26 @@ plzma_size_t plzma_item_out_stream_array_count(const plzma_item_out_stream_array
 
 plzma_item_out_stream_array_pair plzma_item_out_stream_array_pair_at(plzma_item_out_stream_array * LIBPLZMA_NONNULL map,
                                                                      const plzma_size_t index) {
-    plzma_item_out_stream_array_pair cpair;
-    cpair.item.object = cpair.item.exception = cpair.stream.object = cpair.stream.exception = nullptr;
-    LIBPLZMA_C_BINDINGS_OBJECT_EXEC_TRY_RETURN(map, cpair)
+    plzma_item_out_stream_array_pair createdCObject;
+    createdCObject.item.object = createdCObject.item.exception = nullptr;
+    createdCObject.stream.object = createdCObject.stream.exception = nullptr;
+    createdCObject.exception = nullptr;
+    LIBPLZMA_C_BINDINGS_OBJECT_EXEC_TRY_RETURN(map, createdCObject)
     auto pair = static_cast<ItemOutStreamArray *>(map->object)->at(index);
-    cpair.item.object = static_cast<void *>(pair.first.take());
-    cpair.stream.object = static_cast<void *>(pair.second.take());
-    return cpair;
-    LIBPLZMA_C_BINDINGS_OBJECT_EXEC_CATCH_RETURN(map, cpair)
+    createdCObject.item.object = static_cast<void *>(pair.first.take());
+    createdCObject.stream.object = static_cast<void *>(pair.second.take());
+    LIBPLZMA_C_BINDINGS_CREATE_OBJECT_CATCH
 }
 
 void plzma_item_out_stream_array_sort(plzma_item_out_stream_array * LIBPLZMA_NONNULL map) {
-    if (!map->exception) { static_cast<ItemOutStreamArray *>(map->object)->sort(); }
+    if (!map->exception) {
+        static_cast<ItemOutStreamArray *>(map->object)->sort();
+    }
 }
 
 void plzma_item_out_stream_array_pair_release(plzma_item_out_stream_array_pair * LIBPLZMA_NONNULL pair) {
+    plzma_exception_release(pair->exception);
+    pair->exception = nullptr;
     plzma_item_release(&pair->item);
     plzma_out_stream_release(&pair->stream);
 }
