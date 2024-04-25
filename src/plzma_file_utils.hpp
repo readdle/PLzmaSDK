@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,8 +29,9 @@
 #define __PLZMA_FILE_UTILS_HPP__ 1
 
 #include <cstddef>
+#include <cstdint>
 
-#include "plzma_private.h"
+#include "plzma_private.hpp"
 #include "../libplzma.hpp"
 
 #include <ctype.h>
@@ -45,8 +46,7 @@ namespace fileUtils {
 #elif defined(LIBPLZMA_POSIX)
         return fseeko(file, offset, origin);
 #else
-        assert(0);
-        return -1;
+#error "Not implemented."
 #endif
     }
     
@@ -56,14 +56,13 @@ namespace fileUtils {
 #elif defined(LIBPLZMA_POSIX)
         return ftello(file);
 #else
-        assert(0);
-        return -1;
+#error "Not implemented."
 #endif
     }
     
-    extern bool fileErase(const Path & path, const plzma_erase eraseType);
+    LIBPLZMA_CPP_API_PRIVATE(bool) fileErase(const Path & path, const plzma_erase eraseType);
     
-    extern Pair<RawHeapMemory, size_t> fileContent(const Path & path);
+    LIBPLZMA_CPP_API_PRIVATE(RawHeapMemorySize) fileContent(const Path & path, const uint64_t maxSize = UINT64_MAX);
     
 } // namespace fileUtils
 } // namespace plzma
