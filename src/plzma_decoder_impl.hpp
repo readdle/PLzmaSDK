@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -39,6 +39,7 @@
 #include "plzma_common.hpp"
 #include "plzma_c_bindings_private.hpp"
 #include "plzma_progress.hpp"
+#include "plzma_mutex.hpp"
 
 #include "CPP/Common/Common.h"
 #include "CPP/Common/MyWindows.h"
@@ -56,12 +57,16 @@ namespace plzma {
     class DecoderImpl final : public CMyUnknownImp, public Decoder {
     private:
         friend struct SharedPtr<DecoderImpl>;
-        LIBPLZMA_MUTEX(_mutex)
+        LIBPLZMA_MUTEX(mutable _mutex)
+#if !defined(LIBPLZMA_NO_CRYPTO)
         String _password;
+#endif
         CMyComPtr<InStreamBase> _stream;
         CMyComPtr<OpenCallback> _openCallback;
         CMyComPtr<ExtractCallback> _extractCallback;
+#if !defined(LIBPLZMA_NO_PROGRESS)
         SharedPtr<Progress> _progress;
+#endif
         plzma_file_type _type = plzma_file_type_7z;
         bool _opened = false;
         bool _opening = false;
@@ -72,20 +77,32 @@ namespace plzma {
         
         template<typename ... ARGS>
         bool process(ARGS&&... args) {
-            LIBPLZMA_LOCKGUARD(lock, _mutex)
+            LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
             if (!_opened || _extractCallback) {
                 return false;
             }
             
             CMyComPtr<DecoderImpl> selfPtr(this);
             
+#if defined(LIBPLZMA_NO_PROGRESS)
+#  if defined(LIBPLZMA_NO_CRYPTO)
+            CMyComPtr<ExtractCallback> extractCallback(new ExtractCallback(_openCallback->archive(), _type));
+#  else
+            CMyComPtr<ExtractCallback> extractCallback(new ExtractCallback(_openCallback->archive(), _password, _type));
+#  endif
+#else
             _progress->reset();
+#  if defined(LIBPLZMA_NO_CRYPTO)
+            CMyComPtr<ExtractCallback> extractCallback(new ExtractCallback(_openCallback->archive(), _progress, _type));
+#  else
             CMyComPtr<ExtractCallback> extractCallback(new ExtractCallback(_openCallback->archive(), _password, _progress, _type));
+#  endif
+#endif
             _extractCallback = extractCallback;
             
-            LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+            LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
             extractCallback->process(static_cast<ARGS &&>(args)...);
-            LIBPLZMA_LOCKGUARD_LOCK(lock)
+            LIBPLZMA_UNIQUE_LOCK_LOCK(lock)
             
             CMyComPtr<ExtractCallback> tmpExtractCallback(static_cast<CMyComPtr<ExtractCallback> &&>(_extractCallback));
             tmpExtractCallback.Release();
@@ -100,7 +117,9 @@ namespace plzma {
         LIBPLZMA_NON_COPYABLE_NON_MOVABLE(DecoderImpl)
         
     public:
-        MY_ADDREF_RELEASE
+        // MY_ADDREF_RELEASE -> Z7_COM_ADDREF_RELEASE
+        ULONG AddRef() { return ++_m_RefCount; }
+        ULONG Release() { if (--_m_RefCount != 0) return _m_RefCount;  delete this;  return 0; }
         
         virtual void setPassword(const wchar_t * LIBPLZMA_NULLABLE password) override final;
         virtual void setPassword(const char * LIBPLZMA_NULLABLE password) override final;

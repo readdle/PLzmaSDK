@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -41,13 +41,13 @@
 
 namespace plzma {
     
-    extern uint64_t PROPVARIANTGetUInt64(const PROPVARIANT & prop) noexcept;
+    LIBPLZMA_CPP_API_PRIVATE(uint64_t) PROPVARIANTGetUInt64(const PROPVARIANT & prop) noexcept;
 
-    extern bool PROPVARIANTGetBool(const PROPVARIANT & prop) noexcept;
+    LIBPLZMA_CPP_API_PRIVATE(bool) PROPVARIANTGetBool(const PROPVARIANT & prop) noexcept;
 
-    extern time_t FILETIMEToUnixTime(const FILETIME & filetime) noexcept;
+    LIBPLZMA_CPP_API_PRIVATE(time_t) FILETIMEToUnixTime(const FILETIME & filetime) noexcept;
 
-    extern FILETIME UnixTimeToFILETIME(const time_t t) noexcept;
+    LIBPLZMA_CPP_API_PRIVATE(FILETIME) UnixTimeToFILETIME(const time_t t) noexcept;
     
 } // namespace plzma
 
