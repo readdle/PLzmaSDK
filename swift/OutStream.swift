@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -30,11 +30,17 @@ import Foundation
 import libplzma
 #endif
 
-/// The output file stream.
-public final class OutStream {
+/// The out file or memory or multi stream.
+public class OutStream {
+    
     internal let object: plzma_out_stream
     
-    /// Checks the output file stream is opened.
+    internal var isMulti: Bool {
+        return false
+    }
+    
+    
+    /// Checks the out stream is opened.
     /// - Note: Thread-safe.
     /// - Throws: `Exception`.
     public func opened() throws -> Bool {
@@ -45,7 +51,7 @@ public final class OutStream {
         }
         return result
     }
-
+    
     
     /// Copies the content of the stream to `Data`.
     ///
@@ -56,13 +62,12 @@ public final class OutStream {
     public func copyContent() throws -> Data {
         var stream = object
         let content = plzma_out_stream_copy_content(&stream)
-        if let exception = stream.exception {
+        if let exception = content.exception {
             throw Exception(object: exception)
         }
         if content.size > 0, let memory = content.memory {
-            return Data(bytesNoCopy: memory, count: content.size, deallocator: .custom({ (memory, size) in
-                let content = plzma_memory(memory: memory, size: size)
-                plzma_free(content.memory)
+            return Data(bytesNoCopy: memory, count: content.size, deallocator: .custom({ (memory, _) in
+                plzma_free(memory)
             }))
         }
         plzma_free(content.memory)
@@ -74,7 +79,7 @@ public final class OutStream {
     /// - Parameter erase: The type of erasing the content.
     /// - Note: Thread-safe.
     /// - Throws: `Exception`.
-    public func erase(erase: Erase) throws -> Bool {
+    public func erase(erase: Erase = .none) throws -> Bool {
         var stream = object
         let result = plzma_out_stream_erase(&stream, erase.type)
         if let exception = stream.exception {
@@ -123,6 +128,7 @@ public final class OutStream {
         }
         object = stream
     }
+    
     
     deinit {
         var stream = object

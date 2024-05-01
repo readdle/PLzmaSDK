@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,7 @@ import libplzma
 
 /// The array of item/out-stream pairs.
 public final class ItemOutStreamArray {
+    
     internal let object: plzma_item_out_stream_array
 
     /// The item/out-stream pair type.
@@ -51,11 +52,13 @@ public final class ItemOutStreamArray {
     /// - Throws: `Exception`.
     public func pair(at index: Size) throws -> Pair {
         var map = object
-        let cpair = plzma_item_out_stream_array_pair_at(&map, index)
-        if let exception = map.exception {
+        var pair = plzma_item_out_stream_array_pair_at(&map, index)
+        if let exception = pair.exception {
+            plzma_item_release(&pair.item)
+            plzma_out_stream_release(&pair.stream)
             throw Exception(object: exception)
         }
-        return Pair(Item(object: cpair.item), OutStream(object: cpair.stream))
+        return Pair(Item(object: pair.item), OutStream(object: pair.stream))
     }
     
     
@@ -79,7 +82,8 @@ public final class ItemOutStreamArray {
         var map = object
         plzma_item_out_stream_array_sort(&map)
     }
-        
+    
+    
     internal init(object o: plzma_item_out_stream_array) {
         object = o
     }
@@ -112,6 +116,7 @@ public final class ItemOutStreamArray {
             }
         }
     }
+    
     
     deinit {
         var map = object

@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -30,12 +30,13 @@
 
 #include <cstddef>
 
-#include "plzma_private.h"
+#include "plzma_private.hpp"
 #include "plzma_common.hpp"
 
 #include <ctype.h>
 #include <stdio.h>
 #include <limits.h>
+#include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 
@@ -50,6 +51,7 @@
 #endif
 
 #elif defined(LIBPLZMA_POSIX)
+#include <sys/time.h>
 #include <dirent.h>
 #include <unistd.h>
 #else
@@ -73,10 +75,10 @@ namespace pathUtils {
     template<>
     inline bool pathExists(const wchar_t * LIBPLZMA_NONNULL path, bool * LIBPLZMA_NULLABLE isDir) noexcept {
 #if defined(LIBPLZMA_MSC)
-        if (_waccess(path, 0) == 0) {
+        if (::_waccess(path, 0) == 0) {
             if (isDir) {
                 struct _stat statbuf;
-                if ((_wstat(path, &statbuf) == 0) && (S_ISDIR(statbuf.st_mode))) {
+                if ((::_wstat(path, &statbuf) == 0) && (S_ISDIR(statbuf.st_mode))) {
                     *isDir = true;
                 } else {
                     *isDir = false;
@@ -96,10 +98,10 @@ namespace pathUtils {
     template<>
     inline bool pathExists(const char * LIBPLZMA_NONNULL path, bool * LIBPLZMA_NULLABLE isDir) noexcept {
 #if defined(LIBPLZMA_MSC)
-        if (_access(path, 0) == 0) {
+        if (::_access(path, 0) == 0) {
             if (isDir) {
                 struct _stat statbuf;
-                if ((_stat(path, &statbuf) == 0) && (S_ISDIR(statbuf.st_mode))) {
+                if ((::_stat(path, &statbuf) == 0) && (S_ISDIR(statbuf.st_mode))) {
                     *isDir = true;
                 } else {
                     *isDir = false;
@@ -108,10 +110,10 @@ namespace pathUtils {
             return true;
         }
 #elif defined(LIBPLZMA_POSIX)
-        if (access(path, F_OK) == 0) {
+        if (::access(path, F_OK) == 0) {
             if (isDir) {
                 struct stat statbuf;
-                if ((stat(path, &statbuf) == 0) && (S_ISDIR(statbuf.st_mode))) {
+                if ((::stat(path, &statbuf) == 0) && (S_ISDIR(statbuf.st_mode))) {
                     *isDir = true;
                 } else {
                     *isDir = false;
@@ -131,14 +133,16 @@ namespace pathUtils {
     
     template<>
     inline plzma_path_stat pathStat(const wchar_t * LIBPLZMA_NULLABLE path) noexcept {
-        plzma_path_stat t{0, 0, 0, 0};
+        plzma_path_stat t{0, {0, 0, 0}};
 #if defined(LIBPLZMA_MSC)
-        struct __stat64 statbuf;
-        if (path && _wstat64(path, &statbuf) == 0) {
-            t.creation = statbuf.st_ctime;
-            t.last_access = statbuf.st_atime;
-            t.last_modification = statbuf.st_mtime;
-            t.size = static_cast<uint64_t>(statbuf.st_size);
+        if (path) {
+            struct __stat64 statbuf;
+            if (::_wstat64(path, &statbuf) == 0) {
+                t.timestamp.creation = statbuf.st_ctime;
+                t.timestamp.last_access = statbuf.st_atime;
+                t.timestamp.last_modification = statbuf.st_mtime;
+                t.size = static_cast<uint64_t>(statbuf.st_size);
+            }
         }
 #else
         assert(0);
@@ -148,21 +152,25 @@ namespace pathUtils {
     
     template<>
     inline plzma_path_stat pathStat(const char * LIBPLZMA_NULLABLE path) noexcept {
-        plzma_path_stat t{0, 0, 0, 0};
+        plzma_path_stat t{0, {0, 0, 0}};
 #if defined(LIBPLZMA_MSC)
-        struct _stat statbuf;
-        if (path && _stat(path, &statbuf) == 0) {
-            t.creation = statbuf.st_ctime;
-            t.last_access = statbuf.st_atime;
-            t.last_modification = statbuf.st_mtime;
+        if (path) {
+            struct _stat statbuf;
+            if (::_stat(path, &statbuf) == 0) {
+                t.timestamp.creation = statbuf.st_ctime;
+                t.timestamp.last_access = statbuf.st_atime;
+                t.timestamp.last_modification = statbuf.st_mtime;
+            }
         }
 #elif defined(LIBPLZMA_POSIX)
-        struct stat statbuf;
-        if (path && stat(path, &statbuf) == 0) {
-            t.creation = statbuf.st_ctime;
-            t.last_access = statbuf.st_atime;
-            t.last_modification = statbuf.st_mtime;
-            t.size = static_cast<uint64_t>(statbuf.st_size);
+        if (path) {
+            struct stat statbuf;
+            if (::stat(path, &statbuf) == 0) {
+                t.timestamp.creation = statbuf.st_ctime;
+                t.timestamp.last_access = statbuf.st_atime;
+                t.timestamp.last_modification = statbuf.st_mtime;
+                t.size = static_cast<uint64_t>(statbuf.st_size);
+            }
         }
 #endif
         return t;
@@ -174,7 +182,7 @@ namespace pathUtils {
     template<>
     inline bool pathReadable(const wchar_t * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _waccess(path, 4) == 0;
+        return (::_waccess(path, 4) == 0);
 #else
         assert(0);
         return false;
@@ -184,9 +192,9 @@ namespace pathUtils {
     template<>
     inline bool pathReadable(const char * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _access(path, 4) == 0;
+        return (::_access(path, 4) == 0);
 #elif defined(LIBPLZMA_POSIX)
-        return access(path, R_OK) == 0;
+        return (::access(path, R_OK) == 0);
 #endif
     }
     
@@ -196,7 +204,7 @@ namespace pathUtils {
     template<>
     inline bool pathWritable(const wchar_t * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _waccess(path, 2) == 0;
+        return (::_waccess(path, 2) == 0);
 #else
         assert(0);
         return false;
@@ -206,9 +214,9 @@ namespace pathUtils {
     template<>
     inline bool pathWritable(const char * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _access(path, 2) == 0;
+        return (::_access(path, 2) == 0);
 #elif defined(LIBPLZMA_POSIX)
-        return access(path, W_OK) == 0;
+        return (::access(path, W_OK) == 0);
 #endif
     }
     
@@ -218,7 +226,7 @@ namespace pathUtils {
     template<>
     inline bool pathReadableAndWritable(const wchar_t * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _waccess(path, 6) == 0;
+        return (::_waccess(path, 6) == 0);
 #else
         assert(0);
         return false;
@@ -228,9 +236,9 @@ namespace pathUtils {
     template<>
     inline bool pathReadableAndWritable(const char * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _access(path, 6) == 0;
+        return (::_access(path, 6) == 0);
 #elif defined(LIBPLZMA_POSIX)
-        return access(path, R_OK | W_OK) == 0;
+        return (::access(path, R_OK | W_OK) == 0);
 #endif
     }
     
@@ -240,7 +248,7 @@ namespace pathUtils {
     template<>
     inline bool createSingleDir(const wchar_t * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _wmkdir(path) == 0;
+        return (::_wmkdir(path) == 0);
 #else
         assert(0);
         return false;
@@ -250,7 +258,7 @@ namespace pathUtils {
     template<>
     inline bool createSingleDir(const char * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _mkdir(path) == 0;
+        return (::_mkdir(path) == 0);
 #elif defined(LIBPLZMA_POSIX)
         const mode_t mode = S_IRUSR | S_IWUSR | S_IXUSR |
         S_IRGRP |           S_IXGRP |
@@ -269,7 +277,7 @@ namespace pathUtils {
         //#define    S_IROTH        0000004        /* [XSI] R for other */
         //#define    S_IWOTH        0000002        /* [XSI] W for other */
         //#define    S_IXOTH        0000001        /* [XSI] X for other */
-        return mkdir(path, mode) == 0;
+        return (::mkdir(path, mode) == 0);
 #endif
     }
     
@@ -298,9 +306,11 @@ namespace pathUtils {
     
     template<typename T, const T PS = platformSeparator<T>(), const T AS = additionalSeparator<T>()>
     inline bool createIntermediateDirs(const T * LIBPLZMA_NONNULL path, const size_t len) {
-        bool isDir = false;
-        if (pathExists<T>(path, &isDir) && isDir) {
-            return true;
+        {
+            bool isDir = false;
+            if (pathExists<T>(path, &isDir)) {
+                return isDir;
+            }
         }
         RawHeapMemory pathCopy(sizeof(T) * (len + 1), plzma_erase_zero);
         const T * cs1 = path;
@@ -341,7 +351,7 @@ namespace pathUtils {
     template<>
     inline bool removeEmptyDir(const wchar_t * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _wrmdir(path) == 0;
+        return (::_wrmdir(path) == 0);
 #else
         assert(0);
         return false;
@@ -351,9 +361,9 @@ namespace pathUtils {
     template<>
     inline bool removeEmptyDir(const char * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _rmdir(path) == 0;
+        return (::_rmdir(path) == 0);
 #else
-        return rmdir(path) == 0;
+        return (::rmdir(path) == 0);
 #endif
     }
     
@@ -363,7 +373,7 @@ namespace pathUtils {
     template<>
     inline bool removeFile(const wchar_t * LIBPLZMA_NONNULL path) noexcept {
 #if defined(LIBPLZMA_MSC)
-        return _wremove(path) == 0;
+        return (::_wremove(path) == 0);
 #else
         assert(0);
         return false;
@@ -372,7 +382,7 @@ namespace pathUtils {
     
     template<>
     inline bool removeFile(const char * LIBPLZMA_NONNULL path) noexcept {
-        return remove(path) == 0;
+        return (::remove(path) == 0);
     }
     
     template<typename T>
@@ -527,7 +537,7 @@ namespace pathUtils {
             blen--;
         }
         if (alen == blen) {
-            return alen ? memcmp(a, b, sizeof(T) * alen) == 0 : true;
+            return alen ? (::memcmp(a, b, sizeof(T) * alen) == 0) : true;
         }
         return false;
     }
@@ -539,12 +549,12 @@ namespace pathUtils {
         RAIIFindHANDLE() = default;
         ~RAIIFindHANDLE() {
             if (handle != INVALID_HANDLE_VALUE) {
-                FindClose(handle);
+                ::FindClose(handle);
             }
         }
     };
     
-    extern bool removeDir(Path & path, const bool skipErrors);
+    LIBPLZMA_CPP_API_PRIVATE(bool) removeDir(Path & path, const bool skipErrors);
 #elif defined(LIBPLZMA_POSIX)
     struct RAIIDIR final {
         LIBPLZMA_NON_COPYABLE_NON_MOVABLE(RAIIDIR)
@@ -552,12 +562,12 @@ namespace pathUtils {
         RAIIDIR() = default;
         ~RAIIDIR() {
             if (dir) {
-                closedir(dir);
+                ::closedir(dir);
             }
         }
     };
     
-    extern bool removeDir(Path & path, const bool skipErrors);
+    LIBPLZMA_CPP_API_PRIVATE(bool) removeDir(Path & path, const bool skipErrors);
 #endif
     template<typename T>
     bool removePath(const T * LIBPLZMA_NONNULL path, const bool skipErrors) {
@@ -574,7 +584,40 @@ namespace pathUtils {
         return true;
     }
     
+    template<typename T>
+    bool setFileTimestamp(const T * LIBPLZMA_NONNULL path, const plzma_path_timestamp & timestamp) noexcept;
+    
+    template<>
+    inline bool setFileTimestamp(const wchar_t * LIBPLZMA_NONNULL path, const plzma_path_timestamp & timestamp) noexcept {
+#if defined(LIBPLZMA_MSC)
+        struct _utimbuf timeBuff{0, 0};
+        timeBuff.actime = timestamp.last_access;
+        timeBuff.modtime = timestamp.last_modification;
+        return (::_wutime(path, &timeBuff) == 0);
+#else
+        assert(0);
+        return false;
+#endif
+    }
+    
+    template<>
+    inline bool setFileTimestamp(const char * LIBPLZMA_NONNULL path, const plzma_path_timestamp & timestamp) noexcept {
+#if defined(LIBPLZMA_MSC)
+        struct _utimbuf timeBuff{0, 0};
+        timeBuff.actime = timestamp.last_access;
+        timeBuff.modtime = timestamp.last_modification;
+        return (::_utime(path, &timeBuff) == 0);
+#elif defined(LIBPLZMA_POSIX)
+        struct utimbuf timeBuff{0, 0};
+        timeBuff.actime = timestamp.last_access;
+        timeBuff.modtime = timestamp.last_modification;
+        return (::utime(path, &timeBuff) == 0);
+#endif
+    }
+    
 } // namespace plzma
 } // namespace pathUtils
+
+//#include <CoreFoundation/CoreFoundation.h>
 
 #endif // !__PLZMA_PATH_UTILS_HPP__
