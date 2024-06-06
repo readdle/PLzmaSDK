@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -46,7 +46,7 @@ public:
 #if defined(LIBPLZMA_OS_WINDOWS)
         std::wcout << L"Path: " << path.wide() << L", progress: " << progress << std::endl;
 #else
-        std::cout << "Path: " << path.utf8() << ", progress: " << progress << std::endl;
+        std::flush(std::cout) << "Path: " << path.utf8() << ", progress: " << progress << std::endl;
 #endif
     }
     virtual ~TestProgressDelegate() { }
@@ -223,44 +223,38 @@ int test_plzma_encode_test2(void) {
 }
 
 int test_plzma_encode_example(void) {
+    
     return 0;
 }
 
 int test_plzma_encode_test3(void) {
-////    inStream = inStreamCreate(FILE__southpark_jpg_PTR, FILE__southpark_jpg_SIZE, dummy_free_callback);
-////    PLZMA_TESTS_ASSERT(inStream != nullptr)
-////    PLZMA_TESTS_ASSERT(archivePath.set("SouthPark.jpg") == true)
-////    PLZMA_TESTS_ASSERT(encoder->add(inStream, static_cast<Path &&>(archivePath)) == true)
-////    inStream->release();
-//    
-////    path.set("/Users/<>/Downloads/3");
-////    encoder->add(path, true);
-//    
-//    path = Path::tmpPath();
-//    path.removeLastComponent();
-//    encoder->add(path, true);
-//    
-//    PLZMA_TESTS_ASSERT(encoder->open() == true)
-//    PLZMA_TESTS_ASSERT(encoder->open() == false)
-//    
-//    time_t t = time(nullptr);
-//    std::cout << t << " Start compressing ... \n";
-//    bool compressed = false;
-//    std::thread thread([&](){
-//        encoder->retain();
-//        compressed = encoder->compress();
-//        encoder->release();
-//    });
-//    thread.join();
-//    //PLZMA_TESTS_ASSERT(compressed == true)
-//    std::cout << time(nullptr) - t << " Compressing done.\n";
-//    
-//    encoder->release();
+    const auto tmpPath = Path::tmpPath();
+    const auto emptyDir = tmpPath.appendingRandomComponent();
+    bool res = emptyDir.createDir(false);
+    PLZMA_TESTS_ASSERT(res == true)
+    bool isDir = false;
+    res = emptyDir.exists(&isDir);
+    PLZMA_TESTS_ASSERT(res == true)
+    PLZMA_TESTS_ASSERT(isDir == true)
+    
+    const auto emptyFile = emptyDir.appendingRandomComponent();
+    FILE * filePtr = emptyFile.openFile("w+b");
+    PLZMA_TESTS_ASSERT(filePtr != nullptr)
+    fclose(filePtr);
+    const auto stat = emptyFile.stat();
+    PLZMA_TESTS_ASSERT(stat.size == 0)
+    PLZMA_TESTS_ASSERT(stat.timestamp.creation != 0)
+    PLZMA_TESTS_ASSERT(stat.timestamp.last_access != 0)
+    PLZMA_TESTS_ASSERT(stat.timestamp.last_modification != 0)
+    
+    res = emptyDir.remove();
+    PLZMA_TESTS_ASSERT(res == true)
+    
     return 0;
 }
 
 int main(int argc, char* argv[]) {
-    std::cout << plzma_version();
+    std::flush(std::cout) << plzma_version();
     int ret = 0;
     
     try {    
@@ -280,28 +274,33 @@ int main(int argc, char* argv[]) {
             return ret;
         }
     } catch (const Exception & e) {
-        std::cout << "PLZMA Exception [" << e.code() << "]:" << std::endl;
+        std::flush(std::cout) << "PLZMA Exception [" << e.code() << "]:" << std::endl;
         if (e.what()) {
-            std::cout << "what: " << e.what() << std::endl;
+            std::flush(std::cout) << "what: " << e.what() << std::endl;
         }
         if (e.reason()) {
-            std::cout << "reason: " << e.reason() << std::endl;
+            std::flush(std::cout) << "reason: " << e.reason() << std::endl;
         }
         if (e.file()) {
-            std::cout << "file: " << e.file() << std::endl;
+            std::flush(std::cout) << "file: " << e.file() << std::endl;
         }
-        std::cout << "line: " << e.line() << std::endl;
+        std::flush(std::cout) << "line: " << e.line() << std::endl;
         throw;
     } catch (const std::exception & e) {
-        std::cout << "std exception:" << std::endl;
+        std::flush(std::cout) << "std exception:" << std::endl;
         if (e.what()) {
-            std::cout << "what: " << e.what() << std::endl;
+            std::flush(std::cout) << "what: " << e.what() << std::endl;
         }
         throw;
     } catch (...) {
-        std::cout << "unknown exception:" << std::endl;
+        std::flush(std::cout) << "unknown exception:" << std::endl;
         throw;
     }
+    
+//    while (1) {
+//        usleep(50);
+//    }
+    
     return ret;
 }
 

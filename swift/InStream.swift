@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -30,8 +30,11 @@ import Foundation
 import libplzma
 #endif
 
-/// The input file stream.
-public class InStream {
+/// The input stream.
+///
+/// The stream could be initialized with path or memory data.
+public final class InStream {
+    
     private final class DataNoCopyContext {
         let data: Data
         var offset = Int64(0)
@@ -69,6 +72,7 @@ public class InStream {
         }
         return result
     }
+    
     
     internal init(object: plzma_in_stream) {
         self.object = object
@@ -111,8 +115,10 @@ public class InStream {
         let stream: plzma_in_stream = try dataCopy.withUnsafeBytes({ ptr in
             guard let address = ptr.baseAddress else {
                 throw Exception(code: .invalidArguments,
-                                what: "Can't get data memory.",
-                                reason: "The memory is null.")
+                                what: "Can't instantiate in-stream without memory.",
+                                reason: "The memory is null.",
+                                file: #file,
+                                line: #line)
             }
             return plzma_in_stream_create_with_memory_copy(address, size)
         })
@@ -124,14 +130,16 @@ public class InStream {
     
     
     /// Initializes the input file stream with the file data.
-    /// During the creation, the data will not be copyed.
+    /// During the creation and lifetime the data will not be copyed.
     /// - Parameter dataNoCopy: The file data.
     /// - Throws: `Exception` with `.invalidArguments` code in case if file data is empty.
     public init(dataNoCopy: Data) throws {
         if dataNoCopy.isEmpty {
             throw Exception(code: .invalidArguments,
                             what: "Can't instantiate in-stream without memory.",
-                            reason: "The memory size is zero.")
+                            reason: "The memory size is zero.",
+                            file: #file,
+                            line: #line)
         }
         let context = DataNoCopyContext(dataNoCopy)
         let unmanagedContext = Unmanaged<DataNoCopyContext>.passRetained(context)
@@ -201,6 +209,49 @@ public class InStream {
         }
         object = stream
     }
+    
+    
+    /// Initializes multi input stream with an array of input streams.
+    /// The array should not be empty. The order: file.001, file.002, ..., file.XXX
+    /// - Parameter streams: The non-empty array of input streams. Each stream inside array should also exist.
+    /// - Note: The content of array will be moved to the newly created stream.
+    /// - Note: The array should not be empty.
+    /// - Throws: `Exception` with `.invalidArguments` code in case if streams array is empty or contains empty stream.
+    public init(streams: [InStream]) throws {
+        let count = streams.count
+        if count < 0 || count > Int64(PLZMA_SIZE_T_MAX) {
+            throw Exception(code: .invalidArguments,
+                            what: "Invalid number of streams.",
+                            reason: "The number should be positive and less than maximum supported size.",
+                            file: #file,
+                            line: #line)
+        }
+        
+        var streamsArrayObject = plzma_in_stream_array_create_with_capacity(Size(count))
+        if let exception = streamsArrayObject.exception {
+            throw Exception(object: exception)
+        }
+        
+        defer {
+            plzma_in_stream_array_release(&streamsArrayObject)
+        }
+        
+        for subStream in streams {
+            var subStreamObject = subStream.object
+            plzma_in_stream_array_add(&streamsArrayObject, &subStreamObject)
+            if let exception = streamsArrayObject.exception {
+                throw Exception(object: exception, autoRelease: false)
+            }
+        }
+        
+        let stream = plzma_in_stream_create_with_stream_arraym(&streamsArrayObject)
+        if let exception = stream.exception {
+            throw Exception(object: exception)
+        }
+        
+        object = stream
+    }
+    
     
     deinit {
         var stream = object

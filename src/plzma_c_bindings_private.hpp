@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -35,10 +35,14 @@
 #include "../libplzma.h"
 
 
-#if !defined(LIBPLZMA_HAVE_STD) && defined(SWIFT_PACKAGE)
+// plzma_private.h
+#if !defined(LIBPLZMA_HAVE_STD) && (defined(SWIFT_PACKAGE) || defined(COCOAPODS))
 #define LIBPLZMA_HAVE_STD 1
 #endif
 
+#if defined(LIBPLZMA_HAVE_STD)
+#include <exception>
+#endif
 
 // Creating
 
@@ -63,6 +67,8 @@ try { \
     createdCObject.exception = static_cast<void *>(exception.moveToHeapCopy()); \
 } catch (const std::exception & exception) { \
     createdCObject.exception = static_cast<void *>(Exception::create(plzma_error_code_internal, exception.what(), __FILE__, __LINE__)); \
+} catch (...) { \
+    createdCObject.exception = static_cast<void *>(Exception::create(plzma_error_code_unknown, nullptr, __FILE__, __LINE__)); \
 } \
 return createdCObject; \
 
@@ -112,6 +118,8 @@ try { \
     OBJ_PTR->exception = static_cast<void *>(exception.moveToHeapCopy()); \
 } catch (const std::exception & exception) { \
     OBJ_PTR->exception = static_cast<void *>(Exception::create(plzma_error_code_internal, exception.what(), __FILE__, __LINE__)); \
+} catch (...) { \
+    OBJ_PTR->exception = static_cast<void *>(Exception::create(plzma_error_code_unknown, nullptr, __FILE__, __LINE__)); \
 } \
 return FAIL_RES; \
 
@@ -135,6 +143,8 @@ return FAIL_RES; \
     OBJ_PTR->exception = static_cast<void *>(exception.moveToHeapCopy()); \
 } catch (const std::exception & exception) { \
     OBJ_PTR->exception = static_cast<void *>(Exception::create(plzma_error_code_internal, exception.what(), __FILE__, __LINE__)); \
+}  catch (...) { \
+    OBJ_PTR->exception = static_cast<void *>(Exception::create(plzma_error_code_unknown, nullptr, __FILE__, __LINE__)); \
 } \
 
 

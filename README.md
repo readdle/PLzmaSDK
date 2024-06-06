@@ -1,29 +1,36 @@
-![Cocoapods platforms](https://img.shields.io/cocoapods/p/PLzmaSDK)
-![Cocoapods](https://img.shields.io/cocoapods/l/PLzmaSDK)
-![Cocoapods](https://img.shields.io/cocoapods/v/PLzmaSDK)
-![node-current](https://img.shields.io/node/v/plzmasdk)
+![platform](https://img.shields.io/badge/platform-iOS%20%7C%20macOS%20%7C%20tvOS%20%7C%20watchOS%20%7C%20Android%20%7C%20Windows%20%7C%20Linux%20%7C%20Unix-lightgrey.svg)
+![language](https://img.shields.io/badge/language-Swift%20%7C%20Objective%E2%80%93C%20%7C%20C%20%7C%20C++%20%7C%20JavaScript-brightgreen.svg)
+[![Cocoapods](https://img.shields.io/cocoapods/l/PLzmaSDK)](https://cocoapods.org/pods/PLzmaSDK)
+[![Cocoapods](https://img.shields.io/cocoapods/v/PLzmaSDK)](https://cocoapods.org/pods/PLzmaSDK)
+[![SwiftPM compatible](https://img.shields.io/badge/SwiftPM-compatible-brightgreen.svg)](https://swift.org/package-manager)
+[![GitHub release](https://img.shields.io/github/release/OlehKulykov/PLzmaSDK.svg)](https://github.com/OlehKulykov/PLzmaSDK/releases)
+[![node-current](https://img.shields.io/node/v/plzmasdk)](https://www.npmjs.com/package/plzmasdk)
 [![Build Status](https://travis-ci.org/OlehKulykov/PLzmaSDK.svg?branch=master)](https://travis-ci.org/OlehKulykov/PLzmaSDK)
 [![Build status](https://ci.appveyor.com/api/projects/status/1mb5w6nlht1ar2p8/branch/master?svg=true)](https://ci.appveyor.com/project/OlehKulykov/plzmasdk/branch/master)
+[![Language grade: C/C++](https://img.shields.io/lgtm/grade/cpp/g/OlehKulykov/PLzmaSDK.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/OlehKulykov/PLzmaSDK/context:cpp)
+[![Language grade: JavaScript](https://img.shields.io/lgtm/grade/javascript/g/OlehKulykov/PLzmaSDK.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/OlehKulykov/PLzmaSDK/context:javascript)
 
 
 **P**LzmaSDK is (**P**ortable, **P**atched, **P**ackage, cross-**P**-latform) Lzma SDK.
-Based on original [LZMA SDK] version 19.00 (1900 - latest for now) and patched for unix platforms.
+Based on original [LZMA SDK] version 23.01 and patched for unix platforms.
 Available for all Apple's platforms(iOS, macOS, tvOS, watchOS), Android, Windows, Linux and any unix'es.
 
 
 ### Features / detailed description
 -----------
 - The SDK is available for the next programming languages:
-  * [Swift](https://swift.org/) via [Swift Package Manager] or [CocoaPods].
-  * JavaScript via [npm].
-  * Pure C++ via git+CMake or copy 2 main lib headers([libplzma.h] and [libplzma.hpp] files) and 'src' folder to your project.
-  * Pure C, also via git+CMake or copy 2 main lib headers([libplzma.h] and [libplzma.hpp] files) and 'src' folder to your project. But this internal C bindings code might be disabled via CMake's boolean option `LIBPLZMA_OPT_NO_C_BINDINGS:BOOL=YES` or preprocessor definition `LIBPLZMA_NO_C_BINDINGS=1`, see below.
+  * [Swift] via [Swift Package Manager] or [CocoaPods].
+  * [Objective-C] via [CocoaPods].
+  * [JavaScript] via [npm].
+  * Pure C++ via [git] + [CMake] or copy 2 main lib headers([libplzma.h] and [libplzma.hpp] files) and [src] folder to your project.
+  * Pure C, also via [git] + [CMake] or copy 2 main lib headers([libplzma.h] and [libplzma.hpp] files) and [src] folder to your project. But this internal C bindings code might be disabled via [CMake]'s boolean option `LIBPLZMA_OPT_NO_C_BINDINGS:BOOL=YES` or preprocessor definition `LIBPLZMA_NO_C_BINDINGS=1`, see below.
 - Supports next archives:
-  * [7z]. Both, encrypted/password-protected and unencrypted archive item-list and it's content. [Lzma] and [Lzma2] compression methods.
+  * [7z]. Both, encrypted/password-protected and unencrypted archive items-list and it's content. [Lzma] and [Lzma2] compression methods.
   * [xz]. [Lzma2] compression method.
-  * [tar]/[tarball].
+  * [tar]/[tarball]. *.tar, *.tar.xz and *.tar.7z archives.
 - Supports list, test, extract and compress operations. All these operations can be executed in a separate thread and aborted during the process.
-- Thread safe encoder, decoder and progress tracking.
+- Supports [7z] multivolume archives.
+- Thread safe encoder, decoder and progress tracking. Depending of usage, you can disable all thread synchronizations via [CMake]'s boolean option `LIBPLZMA_OPT_THREAD_UNSAFE:BOOL=YES` or preprocessor definition `LIBPLZMA_THREAD_UNSAFE=1`.
 - Supports memory and file IO streams. The extracting and compressing might be from ⇔ to memory or file.
 - Support extracting and compressing archive files with size more than 4GB(x64 support).
 - Track smoothed progress.
@@ -32,33 +39,44 @@ Available for all Apple's platforms(iOS, macOS, tvOS, watchOS), Android, Windows
 - No external dependencies. Also no [STL] (of couse not in a public interface and internally).
 - The SDK is organized as C **and** C++ library at the same time. And supports static and dynamic linking.
   * The [libplzma.h] - the library header for a pure C environment. Contains generic functions, types and optional bindings to the whole functionality of the library. Currently uses with [Swift Package Manager] and [CocoaPods].
-  * The [libplzma.hpp] - the library header for a pure C++ environment and must be used together with [libplzma.h] header. Currently uses with [npm] native module.
-  * The [swift](https://github.com/OlehKulykov/PLzmaSDK/tree/master/swift) directory contains Swift part of the SDK and available via the [Swift Package Manager] and [CocoaPods], see ```Installation``` section.
-  * The 'node' directory contains Node.js native, inline module implementation. 
+  * The [libplzma.hpp] - the library header for a pure C++ environment and must be used together with [libplzma.h] header. Currently uses with [npm] native module and [Objective-C].
+  * The [swift](https://github.com/OlehKulykov/PLzmaSDK/tree/master/swift) directory contains [Swift] part of the SDK and available via [Swift Package Manager] and [CocoaPods], see ```Installation``` section.
+  * The [objc](https://github.com/OlehKulykov/PLzmaSDK/tree/master/objc) directory contains [Objective-C] part of the SDK and available via [CocoaPods], see ```Installation``` section.
+  * The [node](https://github.com/OlehKulykov/PLzmaSDK/tree/master/node) directory contains Node.js native, inline module implementation. 
 
 ### Optional features
 All optional features are enabled by default, but they might be disabled during the build process to reduce the binary size, and of course, if you are not planning to use them.
 
-- [tar]/[tarball] archive support. To disable, use the CMake's boolean option `LIBPLZMA_OPT_NO_TAR:BOOL=YES` or preprocessor definition `LIBPLZMA_NO_TAR=1`
-- Thread safety. To disable, use the CMake's boolean option `LIBPLZMA_OPT_THREAD_UNSAFE:BOOL=YES` or preprocessor definition `LIBPLZMA_THREAD_UNSAFE=1`
-- Progress tracking. To disable, use the CMake's boolean option `LIBPLZMA_OPT_NO_PROGRESS:BOOL=YES` or preprocessor definition `LIBPLZMA_NO_PROGRESS=1`
-- C bindings to the whole functionality of the library in [libplzma.h] header. To disable, use the CMake's boolean option `LIBPLZMA_OPT_NO_C_BINDINGS:BOOL=YES` or preprocessor definition `LIBPLZMA_NO_C_BINDINGS=1`
-
+- [tar]/[tarball] archive support. To disable, use the [CMake]'s boolean option `LIBPLZMA_OPT_NO_TAR:BOOL=YES` or preprocessor definition `LIBPLZMA_NO_TAR=1`
+- Thread safety. To disable, use the [CMake]'s boolean option `LIBPLZMA_OPT_THREAD_UNSAFE:BOOL=YES` or preprocessor definition `LIBPLZMA_THREAD_UNSAFE=1`
+- Progress tracking. To disable, use the [CMake]'s boolean option `LIBPLZMA_OPT_NO_PROGRESS:BOOL=YES` or preprocessor definition `LIBPLZMA_NO_PROGRESS=1`
+- C bindings to the whole functionality of the library in [libplzma.h] header. To disable, use the [CMake]'s boolean option `LIBPLZMA_OPT_NO_C_BINDINGS:BOOL=YES` or preprocessor definition `LIBPLZMA_NO_C_BINDINGS=1`
+- Crypto functionality. Not recommended! But possible. Do this only if you know what are you doing! To disable, use the [CMake]'s boolean option `LIBPLZMA_OPT_NO_CRYPTO:BOOL=YES` or preprocessor definition `LIBPLZMA_NO_CRYPTO=1`
 
 ### Installation
 -----------
 #### Swift Package Manager
 ```swift
-.package(url: "https://github.com/OlehKulykov/PLzmaSDK.git", .exact("1.0.3"))
+.package(url: "https://github.com/OlehKulykov/PLzmaSDK.git", .exact("1.4.2"))
 ```
 
-#### CocoaPods Podfile
+#### CocoaPods Podfile (Swift)
 ```ruby
 use_frameworks!
-platform :ios, '8.0'
+platform :ios, '11.0'
 
 target '<REPLACE_WITH_YOUR_TARGET>' do
-    pod 'PLzmaSDK', :inhibit_warnings => true
+    pod 'PLzmaSDK', '1.4.2'
+end
+```
+
+#### CocoaPods Podfile (Objective-C)
+```ruby
+use_frameworks!
+platform :ios, '9.0'
+
+target '<REPLACE_WITH_YOUR_TARGET>' do
+    pod 'PLzmaSDK-ObjC', '1.4.2'
 end
 ```
 
@@ -70,7 +88,7 @@ end
     "npm": ">=6.0.0"
   },
   "dependencies": {
-    "plzmasdk": "1.0.3"
+    "plzmasdk": "1.4.2"
   }
 }
 ```
@@ -126,8 +144,8 @@ do {
     let archivePath = try Path("path/to/archive.7z")
     let archivePathInStream = try InStream(path: archivePath)
 
-    //  1.2. Create a source input stream with the file content in memory.
-    let archiveData = Data(bytesNoCopy: <FILE DATA>, count: <FILE SIZE>, deallocator: .none)
+    //  1.2. Create a source input stream with the file content.
+    let archiveData = Data(...)
     let archiveDataInStream = try InStream(dataNoCopy: archiveData) // also available Data(dataCopy: Data)
 
     // 2. Create decoder with source input stream, type of archive and optional delegate.
@@ -177,7 +195,7 @@ try {
     const archivePath = plzma.Path(__dirname).append('path/to/archive.7z');
     const archivePathInStream = new plzma.InStream(archivePath /* 'path/to/archive.7z' */);
 
-    //  1.2. Create a source input stream with the file content in memory.
+    //  1.2. Create a source input stream with the file content.
     const archiveData = new ArrayBuffer(...);
     const archiveDataInStream = new plzma.InStream(archiveData);
 
@@ -226,7 +244,7 @@ try {
     Path archivePath("path/to/archive.7z"); // Path(L"C:\\\\path\\to\\archive.7z");
     auto archivePathInStream = makeSharedInStream(archivePath /* std::move(archivePath) */);
     
-    //  1.2. Create a source input stream with the file content in memory.
+    //  1.2. Create a source input stream with the file content.
     auto archiveDataInStream = makeSharedInStream(<FILE DATA>, <FILE SIZE>);
     
     // 2. Create decoder with source input stream, type of archive and provide optional delegate.
@@ -367,7 +385,7 @@ do {
     
     // 3. Add content for archiving.
     //  3.1. Single file path with optional path inside the archive.
-    try encoder.add(path: Path("dir/my_file1.txt")) // store as "my_file1.txt"
+    try encoder.add(path: Path("dir/my_file1.txt")) // store as "dir/my_file1.txt", as is.
     try encoder.add(path: Path("dir/my_file2.txt"), mode: .default, archivePath: Path("renamed_file2.txt")) // store as "renamed_file2.txt"
     
     //  3.2. Single directory path with optional directory iteration option and optional path inside the archive.
@@ -411,7 +429,7 @@ try {
     
     // 3. Add content for archiving.
     //  3.1. Single file path with optional path inside the archive.
-    encoder.add('dir/my_file1.txt'); // store as "my_file1.txt"
+    encoder.add('dir/my_file1.txt'); // store as "dir/my_file1.txt", as is.
     encoder.add('dir/my_file2.txt', 0, 'renamed_file2.txt'); // store as "renamed_file2.txt"
     
     //  3.2. Single directory path with optional directory iteration option and optional path inside the archive.
@@ -447,13 +465,13 @@ try {
     encoder->setPassword("1234");
     
     //  2.2. Setup archive properties.
-    encoder->setShouldEncryptHeader(true);
-    encoder->setShouldEncryptContent(true);
+    encoder->setShouldEncryptHeader(true);   // use this option with password.
+    encoder->setShouldEncryptContent(true);  // use this option with password.
     encoder->setCompressionLevel(9);
 
     // 3. Add content for archiving.
     //  3.1. Single file path with optional path inside the archive.
-    encoder->add(Path("dir/my_file1.txt"));  // store as "my_file1.txt"
+    encoder->add(Path("dir/my_file1.txt"));  // store as "dir/my_file1.txt", as is.
     encoder->add(Path("dir/my_file2.txt"), 0, Path("renamed_file2.txt")); // store as "renamed_file2.txt"
 
     //  3.2. Single directory path with optional directory iteration option and optional path inside the archive.
@@ -490,14 +508,14 @@ plzma_encoder_set_progress_delegate_utf8_callback(&encoder, <C_CALLBACK_FUNCTION
 plzma_encoder_set_password_utf8_string(&encoder, "1234");
 
 //  2.2. Setup archive properties.
-plzma_encoder_set_should_encrypt_header(&encoder, true);
-plzma_encoder_set_should_encrypt_content(&encoder, true);
+plzma_encoder_set_should_encrypt_header(&encoder, true);   // use this option with password.
+plzma_encoder_set_should_encrypt_content(&encoder, true);  // use this option with password.
 plzma_encoder_set_compression_level(&encoder, 9);
 
 // 3. Add content for archiving.
 //  3.1. Single file path with optional path inside the archive.
 plzma_path itemPath = plzma_path_create_with_utf8_string("dir/my_file1.txt");
-plzma_encoder_add_path(&encoder, &itemPath, 0, NULL); // store as "my_file1.txt"
+plzma_encoder_add_path(&encoder, &itemPath, 0, NULL); // store as "dir/my_file1.txt", as is.
 plzma_path_release(&itemPath);
 
 itemPath = plzma_path_create_with_utf8_string("dir/my_file2.txt");
@@ -535,13 +553,14 @@ plzma_path_release(&archivePath); // when no longer needed
 plzma_encoder_release(&encoder); // when no longer needed
 ```
 
+
 ### License
 -----------
 By using this all you are accepting original [LZMA SDK] and MIT license (*see below*):
 
 The MIT License (MIT)
 
-Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -573,6 +592,12 @@ THE SOFTWARE.
 [STL]:https://en.wikipedia.org/wiki/Standard_Template_Library
 [libplzma.h]:https://github.com/OlehKulykov/PLzmaSDK/blob/master/libplzma.h
 [libplzma.hpp]:https://github.com/OlehKulykov/PLzmaSDK/blob/master/libplzma.hpp
+[src]:https://github.com/OlehKulykov/PLzmaSDK/tree/master/src
+[Swift]:https://swift.org
+[Objective-C]:https://developer.apple.com/library/archive/documentation/Cocoa/Conceptual/ProgrammingWithObjectiveC/Introduction/Introduction.html
 [Swift Package Manager]:https://swift.org/package-manager
 [CocoaPods]:https://cocoapods.org/pods/PLzmaSDK
 [npm]:https://www.npmjs.com/package/plzmasdk
+[CMake]:https://cmake.org
+[git]:https://git-scm.com
+[JavaScript]:https://en.wikipedia.org/wiki/JavaScript

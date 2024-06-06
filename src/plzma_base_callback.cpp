@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -28,12 +28,16 @@
 #include <cstddef>
 
 #include "plzma_base_callback.hpp"
+#include "plzma_c_bindings_private.hpp"
 
 #include "CPP/7zip/Archive/DllExports2.h"
 
 namespace plzma {
     
     HRESULT BaseCallback::getTextPassword(Int32 * passwordIsDefined, BSTR * password) noexcept {
+#if defined(LIBPLZMA_NO_CRYPTO)
+        LIBPLZMA_SET_VALUE_TO_PTR(passwordIsDefined, BoolToInt(false))
+#else
         try {
             LIBPLZMA_LOCKGUARD(lock, _mutex)
             if (_result != S_OK) {
@@ -60,9 +64,11 @@ namespace plzma {
             _exception = Exception::create(plzma_error_code_not_enough_memory, "Can't convert string to a binary string.", __FILE__, __LINE__);
             return E_FAIL;
         }
+#endif
         return S_OK;
     }
     
+#if !defined(LIBPLZMA_NO_PROGRESS)
     HRESULT BaseCallback::setProgressTotal(const uint64_t total) noexcept {
         try {
             LIBPLZMA_LOCKGUARD(lock, _mutex)
@@ -110,10 +116,14 @@ namespace plzma {
         }
         return S_OK;
     }
-    
+#endif // !LIBPLZMA_NO_PROGRESS
+
     BaseCallback::~BaseCallback() {
         delete _exception;
+        _exception = nullptr; // virtual base
+#if !defined(LIBPLZMA_NO_CRYPTO)
         _password.clear(plzma_erase_zero);
+#endif
     }
     
     static GUID CLSIDType7z(void) noexcept {
@@ -148,7 +158,7 @@ namespace plzma {
             }
             case plzma_file_type_tar: {
 #if defined(LIBPLZMA_NO_TAR)
-                throw Exception(plzma_error_code_invalid_arguments, "The tar(tarball) support was explicitly disabled. Use cmake option 'LIBPLZMA_OPT_NO_TAR' or 'LIBPLZMA_NO_TAR' preprocessor definition to enable tar(tarball) support.", __FILE__, __LINE__);
+                throw Exception(plzma_error_code_invalid_arguments, LIBPLZMA_NO_TAR_EXCEPTION_WHAT, __FILE__, __LINE__);
 #else
                 const GUID clsidTar = CLSIDTypeTar();
                 res = CreateObject(&clsidTar, archiveGUID, reinterpret_cast<void**>(&ptr));
@@ -158,7 +168,7 @@ namespace plzma {
             default: break;
         }
         sptr.Attach(ptr);
-        if (res == S_OK && ptr) {
+        if ((res == S_OK) && ptr) {
             return sptr;
         }
         Exception exception(plzma_error_code_internal, "Can't create archive object.", __FILE__, __LINE__);

@@ -1,24 +1,32 @@
 // Common/StdInStream.h
 
-#ifndef __COMMON_STD_IN_STREAM_H
-#define __COMMON_STD_IN_STREAM_H
+#ifndef ZIP7_INC_COMMON_STD_IN_STREAM_H
+#define ZIP7_INC_COMMON_STD_IN_STREAM_H
 
 #include <stdio.h>
 
 #include "MyString.h"
 #include "MyTypes.h"
 
-class CStdInStream final
+class CStdInStream Z7_final
 {
   FILE *_stream;
-  bool _streamIsOpen;
+  // bool _streamIsOpen;
 public:
-  CStdInStream(): _stream(0), _streamIsOpen(false) {};
-  CStdInStream(FILE *stream): _stream(stream), _streamIsOpen(false) {};
+  int CodePage;
+
+  CStdInStream(FILE *stream = NULL):
+      _stream(stream),
+      // _streamIsOpen(false),
+      CodePage(-1)
+      {}
+
+  /*
   ~CStdInStream() { Close(); }
 
   bool Open(LPCTSTR fileName) throw();
   bool Close() throw();
+  */
 
   // returns:
   //   false, if ZERO character in stream

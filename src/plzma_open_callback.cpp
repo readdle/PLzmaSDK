@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -32,36 +32,36 @@
 
 namespace plzma {
     
-    STDMETHODIMP OpenCallback::SetTotal(const UInt64 * files, const UInt64 * bytes) {
+    STDMETHODIMP OpenCallback::SetTotal(const UInt64 * files, const UInt64 * bytes) throw() {
         return S_OK; // unused
     }
     
-    STDMETHODIMP OpenCallback::SetCompleted(const UInt64 * files, const UInt64 * bytes) {
+    STDMETHODIMP OpenCallback::SetCompleted(const UInt64 * files, const UInt64 * bytes) throw() {
         return S_OK; // unused
     }
     
-    STDMETHODIMP OpenCallback::CryptoGetTextPassword(BSTR * password) {
+    STDMETHODIMP OpenCallback::CryptoGetTextPassword(BSTR * password) throw() {
         return getTextPassword(nullptr, password);
     }
     
-    STDMETHODIMP OpenCallback::CryptoGetTextPassword2(Int32 * passwordIsDefined, BSTR * password) {
+    STDMETHODIMP OpenCallback::CryptoGetTextPassword2(Int32 * passwordIsDefined, BSTR * password) throw() {
         return getTextPassword(passwordIsDefined, password);
     }
     
     bool OpenCallback::open() {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         if (_result != S_OK) {
             return false;
         }
         CMyComPtr<OpenCallback> selfPtr(this);
         
-        LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+        LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
         HRESULT result = _archive->Open(_stream, nullptr, this);
         UInt32 numItems = 0;
         if (result == S_OK) {
             result = _archive->GetNumberOfItems(&numItems);
         }
-        LIBPLZMA_LOCKGUARD_LOCK(lock)
+        LIBPLZMA_UNIQUE_LOCK_LOCK(lock)
         
         if (result == S_OK && _result == S_OK) {
             _itemsCount = numItems;
@@ -78,12 +78,11 @@ namespace plzma {
             throw localException;
         }
         
-        if (E_INVALIDPASSWORD == result) {
-            throw Exception(plzma_error_code_invalid_password, "Ivalid password.", __FILE__, __LINE__);
-        }
-        else {
-            throw Exception(plzma_error_code_internal, "Can't open in archive.", __FILE__, __LINE__);
-        }
+        Exception internalException(plzma_error_code_internal, "Can't open in archive.", __FILE__, __LINE__);
+#if defined(LIBPLZMA_NO_CRYPTO)
+        internalException.setReason("no crypto", nullptr);
+#endif
+        throw internalException;
     }
     
     void OpenCallback::abort() {
@@ -165,11 +164,15 @@ namespace plzma {
     }
     
     OpenCallback::OpenCallback(const CMyComPtr<InStreamBase> & stream,
+#if !defined(LIBPLZMA_NO_CRYPTO)
                                const String & passwd,
+#endif
                                const plzma_file_type type) : CMyUnknownImp(),
         _archive(createArchive<IInArchive>(type)),
         _stream(stream) {
+#if !defined(LIBPLZMA_NO_CRYPTO)
             _password = passwd;
+#endif
     }
     
 } // namespace plzma

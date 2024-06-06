@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -46,15 +46,21 @@ namespace plzma {
     
     class BaseCallback {
     protected:
-        LIBPLZMA_MUTEX(_mutex)
+        LIBPLZMA_MUTEX(mutable _mutex)
+#if !defined(LIBPLZMA_NO_PROGRESS)
         SharedPtr<Progress> _progress;
+#endif
+#if !defined(LIBPLZMA_NO_CRYPTO)
         String _password;
+#endif
         Exception * _exception = nullptr;   // execution thread only
         HRESULT _result = S_OK;             // shared between threads
         
         HRESULT getTextPassword(Int32 * passwordIsDefined, BSTR * password) noexcept;
+#if !defined(LIBPLZMA_NO_PROGRESS)
         HRESULT setProgressTotal(const uint64_t total) noexcept;
         HRESULT setProgressCompleted(const uint64_t completed) noexcept;
+#endif
         
         LIBPLZMA_NON_COPYABLE_NON_MOVABLE(BaseCallback)
         

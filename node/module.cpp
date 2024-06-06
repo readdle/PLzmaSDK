@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -26,8 +26,10 @@
 
 
 #include <limits>
+#include <memory>
 #include <sstream>
 #include <iostream> // std::cout
+#include <type_traits>
 #include <node.h>
 #include <node_object_wrap.h>
 #include <uv.h>
@@ -40,9 +42,10 @@ namespace nplzma {
     std::string exceptionToString(const plzma::Exception & e) {
         std::ostringstream oss;
         oss << "code: " << e.code();
-        if (e.what()) { oss << "\nwhat: " << e.what(); }
-        if (e.reason()) { oss << "\nreason: " << e.reason(); }
-        if (e.file()) { oss << "\nfile: " << e.file(); }
+        const char * str;
+        if ( (str = e.what()) ) { oss << "\nwhat: " << str; }
+        if ( (str = e.reason()) ) { oss << "\nreason: " << str; }
+        if ( (str = e.file()) ) { oss << "\nfile: " << str; }
         oss << "\nline: " << e.line();
         oss << "\nversion: " << plzma_version();
         return oss.str();
@@ -51,7 +54,8 @@ namespace nplzma {
     std::string exceptionToString(const std::exception & e) {
         std::ostringstream oss;
         oss << "code: 0";
-        if (e.what()) { oss << "\nwhat: " << e.what(); }
+        const char * str;
+        if ( (str = e.what()) ) { oss << "\nwhat: " << str; }
         oss << "\nversion: " << plzma_version();
         return oss.str();
     }
@@ -68,6 +72,8 @@ try { \
 } catch (const std::exception & e) { \
     const auto estr = nplzma::exceptionToString(e); \
     ISOLATE->ThrowException(Exception::Error(String::NewFromUtf8(ISOLATE, estr.c_str()).ToLocalChecked())); return; \
+} catch (...) { \
+    ISOLATE->ThrowException(Exception::Error(String::NewFromUtf8(ISOLATE, "Unknown exception.").ToLocalChecked())); return; \
 } \
 
 
@@ -76,19 +82,21 @@ try { \
     STR = nplzma::exceptionToString(e); \
 } catch (const std::exception & e) { \
     STR = nplzma::exceptionToString(e); \
+} catch (...) { \
+    STR = "Unknown exception."; \
 } \
 
 
 #define NPLZMA_THROW_ARG_TYPE_ERROR_RET(ISOLATE, PROP) \
-static const char * ecsutf8 = "Unsupported argument type or its value for '" PROP "' property/method."; \
+static const char * ecsutf8 = "Unsupported argument type or value for '" PROP "' property/method."; \
 ISOLATE->ThrowException(Exception::TypeError(String::NewFromUtf8(ISOLATE, ecsutf8).ToLocalChecked())); \
 return; \
 
 
 #define NPLZMA_THROW_ARG1_TYPE_ERROR_RET(ISOLATE, FORMT, ARG1) \
-static const char * ecsutf8Format = "Unsupported argument type or its value for '" FORMT "' property/method."; \
+static const char * ecsutf8Format = "Unsupported argument type or value for '" FORMT "' property/method."; \
 char ecsutf8[128] = { 0 }; \
-sprintf(ecsutf8, ecsutf8Format, ARG1); \
+snprintf(ecsutf8, 128, ecsutf8Format, ARG1); \
 ISOLATE->ThrowException(Exception::TypeError(String::NewFromUtf8(ISOLATE, ecsutf8).ToLocalChecked())); \
 return; \
 
@@ -128,10 +136,30 @@ if (VALUE->IsUint32()) { \
 } \
 
 
+#define NPLZMA_GET_PATH_FROM_VALUE(ISOLATE, CONTEXT, VALUE, OUT_VALUE, OUT_VALUE_DEFINED) \
+if (VALUE->IsString()) { \
+    String::Utf8Value tmpPathUtf8Str(ISOLATE, VALUE); \
+    NPLZMA_TRY \
+    OUT_VALUE.set(*tmpPathUtf8Str); \
+    OUT_VALUE_DEFINED = true; \
+    NPLZMA_CATCH_RET(ISOLATE) \
+} else if (VALUE->IsObject()) { \
+    Local<Object> tmpPathObject = VALUE->ToObject(CONTEXT).ToLocalChecked(); \
+    Path * tmpPathPtr = Path::TypedUnwrap(tmpPathObject); \
+    if (tmpPathPtr) { \
+        NPLZMA_TRY \
+        OUT_VALUE.set(tmpPathPtr->_path); \
+        OUT_VALUE_DEFINED = true; \
+        NPLZMA_CATCH_RET(ISOLATE) \
+    } \
+} \
+
+
 namespace nplzma {
     
     class PathIterator;
     class Item;
+    template<class T>
     class OutStream;
     class InStream;
     class Decoder;
@@ -150,6 +178,7 @@ namespace nplzma {
         static Persistent<FunctionTemplate> _constructor;
     public:
         TypedObjectWrap() : node::ObjectWrap() { }
+        virtual ~TypedObjectWrap() { }
         
         static void * TypeKey() {
             Persistent<FunctionTemplate> * constructorPtr = static_cast<Persistent<FunctionTemplate> *>(&_constructor);
@@ -174,7 +203,8 @@ namespace nplzma {
     private:
         friend class PathIterator;
         friend class Item;
-        friend class OutStream;
+        friend class OutStream<plzma::OutStream>;
+        friend class OutStream<plzma::OutMultiStream>;
         friend class InStream;
         friend class Decoder;
         friend class Encoder;
@@ -191,9 +221,12 @@ namespace nplzma {
         static void Clear(const FunctionCallbackInfo<Value> & args);
         static void Set(const FunctionCallbackInfo<Value> & args);
         static void Append(const FunctionCallbackInfo<Value> & args);
+        static void Appending(const FunctionCallbackInfo<Value> & args);
         static void AppendRandomComponent(const FunctionCallbackInfo<Value> & args);
+        static void AppendingRandomComponent(const FunctionCallbackInfo<Value> & args);
         static void LastComponent(const FunctionCallbackInfo<Value> & args);
         static void RemoveLastComponent(const FunctionCallbackInfo<Value> & args);
+        static void RemovingLastComponent(const FunctionCallbackInfo<Value> & args);
         static void Remove(const FunctionCallbackInfo<Value> & args);
         static void CreateDir(const FunctionCallbackInfo<Value> & args);
         static void TmpPath(Local<String> property, const PropertyCallbackInfo<Value> & info);
@@ -201,6 +234,7 @@ namespace nplzma {
     public:
         Path(plzma::Path && path) : TypedObjectWrap<Path>(),
             _path(std::move(path)) { }
+        virtual ~Path() { }
         
         static void Init(Local<Object> exports);
     };
@@ -212,6 +246,8 @@ namespace nplzma {
     public:
         PathIterator(plzma::SharedPtr<plzma::Path::Iterator> && iterator) : node::ObjectWrap(),
             _iterator(std::move(iterator)) { }
+        virtual ~PathIterator() { }
+        
         static void Next(const FunctionCallbackInfo<Value> & args);
         static void Close(const FunctionCallbackInfo<Value> & args);
         static void GetPath(Local<String> property, const PropertyCallbackInfo<Value> & info);
@@ -248,27 +284,39 @@ namespace nplzma {
     public:
         Item(plzma::SharedPtr<plzma::Item> && item) : TypedObjectWrap<Item>(),
             _item(std::move(item)) { }
+        virtual ~Item() { }
         
         static void Init(Local<Object> exports);
     };
     
-    class OutStream final : public TypedObjectWrap<OutStream> {
+    template<class T>
+    class OutStream final : public TypedObjectWrap<OutStream<T> > {
     private:
         friend class Decoder;
         friend class Encoder;
-        plzma::SharedPtr<plzma::OutStream> _stream;
+        friend class OutStream<plzma::OutStream>;
+        friend class OutStream<plzma::OutMultiStream>;
+        plzma::SharedPtr<T> _stream;
+        
+        static Persistent<Symbol> _instantiateWithoutNativeStream;
         
         static void Erase(const FunctionCallbackInfo<Value> & args);
         static void CopyContent(const FunctionCallbackInfo<Value> & args);
         static void Opened(Local<String> property, const PropertyCallbackInfo<Value> & info);
+        static void Streams(Local<String> property, const PropertyCallbackInfo<Value> & info);
         static void New(const FunctionCallbackInfo<Value> & args);
     public:
-        OutStream(plzma::SharedPtr<plzma::OutStream> && stream) : TypedObjectWrap<OutStream>(),
+        OutStream(plzma::SharedPtr<T> && stream) : TypedObjectWrap<OutStream<T> >(),
             _stream(std::move(stream)) { }
+        OutStream() : TypedObjectWrap<OutStream<T> >() { }
+        virtual ~OutStream() { }
         
         static void Init(Local<Object> exports);
     };
     
+    template <class T>
+    Persistent<Symbol> OutStream<T>::_instantiateWithoutNativeStream;
+
     class InStream final : public TypedObjectWrap<InStream> {
     private:
         friend class Decoder;
@@ -283,6 +331,7 @@ namespace nplzma {
         InStream(plzma::SharedPtr<plzma::InStream> && stream, std::shared_ptr<BackingStore> && backingStore) : TypedObjectWrap<InStream>(),
             _stream(std::move(stream)),
             _backingStore(std::move(backingStore)) { }
+        virtual ~InStream() { }
         
         static void Init(Local<Object> exports);
     };
@@ -322,6 +371,8 @@ namespace nplzma {
     public:
         Encoder(plzma::SharedPtr<plzma::Encoder> && encoder) : node::ObjectWrap(),
             _encoder(std::move(encoder)) { }
+        virtual ~Encoder() { }
+        
         virtual void onProgress(void * LIBPLZMA_NULLABLE ctx, const plzma::String & path, const double progress);
         static void Init(Local<Object> exports);
     };
@@ -346,6 +397,8 @@ namespace nplzma {
     public:
         Decoder(plzma::SharedPtr<plzma::Decoder> && decoder) : node::ObjectWrap(),
             _decoder(std::move(decoder)) { }
+        virtual ~Decoder() { }
+        
         virtual void onProgress(void * LIBPLZMA_NULLABLE ctx, const plzma::String & path, const double progress);
         static void Init(Local<Object> exports);
     };
@@ -623,44 +676,18 @@ namespace nplzma {
                 }
                 if (args.Length() > 2) {
                     unsupportedArg3 = true;
-                    if (args[2]->IsString()) {
-                        String::Utf8Value pathStr(isolate, args[2]);
-                        NPLZMA_TRY
-                        archivePath.set(*pathStr);
-                        unsupportedArg3 = false;
-                        NPLZMA_CATCH_RET(isolate)
-                    } else if (args[2]->IsObject()) {
-                        Local<Object> obj = args[2]->ToObject(context).ToLocalChecked();
-                        Path * pathPtr = Path::TypedUnwrap(obj);
-                        if (pathPtr) {
-                            NPLZMA_TRY
-                            archivePath.set(pathPtr->_path);
-                            unsupportedArg3 = false;
-                            NPLZMA_CATCH_RET(isolate)
-                        }
-                    }
+                    bool valueDefined = false;
+                    NPLZMA_GET_PATH_FROM_VALUE(isolate, context, args[2], archivePath, valueDefined)
+                    unsupportedArg3 = !valueDefined;
                 }
             }
                 break;
             case 2: {
                 if (args.Length() > 1) {
                     unsupportedArg2 = true;
-                    if (args[1]->IsString()) {
-                        String::Utf8Value pathStr(isolate, args[1]);
-                        NPLZMA_TRY
-                        archivePath.set(*pathStr);
-                        unsupportedArg2 = false;
-                        NPLZMA_CATCH_RET(isolate)
-                    } else if (args[1]->IsObject()) {
-                        Local<Object> obj = args[1]->ToObject(context).ToLocalChecked();
-                        Path * pathPtr = Path::TypedUnwrap(obj);
-                        if (pathPtr) {
-                            NPLZMA_TRY
-                            archivePath.set(pathPtr->_path);
-                            unsupportedArg2 = false;
-                            NPLZMA_CATCH_RET(isolate)
-                        }
-                    }
+                    bool valueDefined = false;
+                    NPLZMA_GET_PATH_FROM_VALUE(isolate, context, args[1], archivePath, valueDefined)
+                    unsupportedArg2 = !valueDefined;
                 }
             }
                 break;
@@ -678,10 +705,14 @@ namespace nplzma {
         }
         switch (method) {
             case 1:
+                NPLZMA_TRY
                 encoder->_encoder->add(path, openDirMode, archivePath);
+                NPLZMA_CATCH_RET(isolate)
                 break;
             case 2:
+                NPLZMA_TRY
                 encoder->_encoder->add(stream, archivePath);
+                NPLZMA_CATCH_RET(isolate)
                 break;
             default:
                 NPLZMA_THROW_ARG_TYPE_ERROR_RET(isolate, "add(?)")
@@ -950,18 +981,27 @@ namespace nplzma {
         Local<Context> context = isolate->GetCurrentContext();
         if (args.IsConstructCall()) {
             plzma::SharedPtr<plzma::OutStream> stream;
+            plzma::SharedPtr<plzma::OutMultiStream> multiStream;
             plzma_file_type fileType = static_cast<plzma_file_type>(0);
             plzma_method method = static_cast<plzma_method>(0);
             bool unsupportedArg1 = true, unsupportedArg2 = true, unsupportedArg3 = true;
             if (args.Length() > 2) {
                 if (args[0]->IsObject()) {
                     Local<Object> inObj = args[0]->ToObject(context).ToLocalChecked();
-                    OutStream * outStream = OutStream::TypedUnwrap(inObj);
+                    OutStream<plzma::OutStream> * outStream = OutStream<plzma::OutStream>::TypedUnwrap(inObj);
                     if (outStream) {
                         NPLZMA_TRY
                         stream = outStream->_stream;
                         unsupportedArg1 = false;
                         NPLZMA_CATCH_RET(isolate)
+                    } else {
+                        OutStream<plzma::OutMultiStream> * outMultiStream = OutStream<plzma::OutMultiStream>::TypedUnwrap(inObj);
+                        if (outMultiStream) {
+                            NPLZMA_TRY
+                            multiStream = outMultiStream->_stream;
+                            unsupportedArg1 = false;
+                            NPLZMA_CATCH_RET(isolate)
+                        }
                     }
                 }
                 uint32_t fileTypeValue = 0, methodValue = 0;
@@ -988,7 +1028,7 @@ namespace nplzma {
             }
             Encoder * obj = nullptr;
             NPLZMA_TRY
-            auto encoder = plzma::makeSharedEncoder(stream, fileType, method);
+            auto encoder = stream ? plzma::makeSharedEncoder(stream, fileType, method) : plzma::makeSharedEncoder(multiStream, fileType, method);
             obj = new Encoder(std::move(encoder));
             NPLZMA_CATCH_RET(isolate)
             obj->Wrap(args.This());
@@ -997,9 +1037,9 @@ namespace nplzma {
             Local<Function> constructor = args.Data().As<Object>()->GetInternalField(0).As<Function>();
             int argc = 0;
             Local<Value> argv[3];
-            if (args.Length() > 0) { argv[argc++] = args[0]; }
-            if (args.Length() > 1) { argv[argc++] = args[1]; }
-            if (args.Length() > 2) { argv[argc++] = args[2]; }
+            for (int i = 0, n = args.Length(); i < n && i < 3; i++) {
+                argv[argc++] = args[i];
+            }
             TryCatch trycatch(isolate);
             MaybeLocal<Object> maybeResult = constructor->NewInstance(context, argc, argv);
             if (maybeResult.IsEmpty()) {
@@ -1204,12 +1244,20 @@ namespace nplzma {
                             if (item) {
                                 invalidArg1 = false;
                                 Local<Object> valueObject = valueValue->ToObject(context).ToLocalChecked();
-                                OutStream * stream = OutStream::TypedUnwrap(valueObject);
+                                OutStream<plzma::OutStream> * stream = OutStream<plzma::OutStream>::TypedUnwrap(valueObject);
                                 if (stream) {
                                     invalidArg2 = false;
                                     NPLZMA_TRY
                                     itemsMap->push(plzma::ItemOutStreamArray::ElementType(item->_item, stream->_stream));
                                     NPLZMA_CATCH_RET(isolate)
+                                } else {
+                                    OutStream<plzma::OutMultiStream> * multiStream = OutStream<plzma::OutMultiStream>::TypedUnwrap(valueObject);
+                                    if (multiStream) {
+                                        invalidArg2 = false;
+                                        NPLZMA_TRY
+                                        itemsMap->push(plzma::ItemOutStreamArray::ElementType(item->_item, multiStream->_stream.cast<plzma::OutStream>()));
+                                        NPLZMA_CATCH_RET(isolate)
+                                    }
                                 }
                             }
                         }
@@ -1259,25 +1307,9 @@ namespace nplzma {
                         NPLZMA_THROW_ARG1_TYPE_ERROR_RET(isolate, "extract(items<Item>[%llu?],...,...)", static_cast<unsigned long long>(i / 2))
                     }
                 }
-                bool invalidArg2 = true;
-                if (args[1]->IsString()) {
-                    Local<String> pathObj = args[1]->ToString(context).ToLocalChecked();
-                    String::Utf8Value pathStr(isolate, pathObj);
-                    NPLZMA_TRY
-                    path.set(*pathStr);
-                    invalidArg2 = false;
-                    NPLZMA_CATCH_RET(isolate)
-                } else if (args[1]->IsObject()) {
-                    Local<Object> pathObj = args[1]->ToObject(context).ToLocalChecked();
-                    Path * inPath = Path::TypedUnwrap(pathObj);
-                    if (inPath) {
-                        NPLZMA_TRY
-                        path.set(inPath->_path);
-                        invalidArg2 = false;
-                        NPLZMA_CATCH_RET(isolate)
-                    }
-                }
-                if (invalidArg2) {
+                bool valueDefined = false;
+                NPLZMA_GET_PATH_FROM_VALUE(isolate, context, args[1], path, valueDefined)
+                if (!valueDefined) {
                     NPLZMA_THROW_ARG_TYPE_ERROR_RET(isolate, "extract(items<Item>,?,...)")
                 }
                 if (args.Length() > 2) {
@@ -1631,19 +1663,46 @@ namespace nplzma {
         if (args.IsConstructCall()) {
             std::shared_ptr<BackingStore> backingStore;
             plzma::Path path;
-            bool initWithPath = false, unsupportedArg = true;
+            plzma::InStreamArray multiStreams;
+            int method = 0; // 0 - data, 1 - path, 2 - multi volume streams
+            bool unsupportedArg = true;
             if (args.Length() > 0) {
                 if (args[0]->IsString()) {
                     String::Utf8Value str(isolate, args[0]);
                     NPLZMA_TRY
                     path.set(*str);
                     unsupportedArg = false;
-                    initWithPath = true;
+                    method = 1;
                     NPLZMA_CATCH_RET(isolate)
                 } else if (args[0]->IsArrayBuffer()) {
                     Local<ArrayBuffer> arrayBuffer = Local<ArrayBuffer>::Cast(args[0]);
                     backingStore = arrayBuffer->GetBackingStore();
                     unsupportedArg = false;
+                } else if (args[0]->IsArray()) {
+                    Local<Array> arr = Local<Array>::Cast(args[0]);
+                    const uint32_t arrLen = arr->Length();
+                    NPLZMA_TRY
+                    multiStreams = plzma::InStreamArray(static_cast<plzma_size_t>(arrLen));
+                    NPLZMA_CATCH_RET(isolate)
+                    for (uint32_t i = 0; i < arrLen; i++) {
+                        bool invalidInSubStream = true;
+                        Local<Value> val = arr->Get(context, i).ToLocalChecked();
+                        if (val->IsObject()) {
+                            Local<Object> obj = val->ToObject(context).ToLocalChecked();
+                            InStream * inSubStream = InStream::TypedUnwrap(obj);
+                            if (inSubStream) {
+                                NPLZMA_TRY
+                                multiStreams.push(inSubStream->_stream);
+                                invalidInSubStream = false;
+                                NPLZMA_CATCH_RET(isolate)
+                            }
+                        }
+                        if (invalidInSubStream) {
+                            NPLZMA_THROW_ARG1_TYPE_ERROR_RET(isolate, "InStream(stream<InStream>[%llu?])", static_cast<unsigned long long>(i))
+                        }
+                    }
+                    unsupportedArg = false;
+                    method = 2;
                 } else if (args[0]->IsObject()) {
                     Local<Object> inObj = args[0]->ToObject(context).ToLocalChecked();
                     Path * inPath = Path::TypedUnwrap(inObj);
@@ -1651,7 +1710,7 @@ namespace nplzma {
                         NPLZMA_TRY
                         path.set(inPath->_path);
                         unsupportedArg = false;
-                        initWithPath = true;
+                        method = 1;
                         NPLZMA_CATCH_RET(isolate)
                     }
                 }
@@ -1661,7 +1720,20 @@ namespace nplzma {
             }
             InStream * obj = nullptr;
             NPLZMA_TRY
-            auto stream = initWithPath ? plzma::makeSharedInStream(std::move(path)) : plzma::makeSharedInStream(backingStore->Data(), backingStore->ByteLength(), InStreamDummyFreeCallback);
+            plzma::SharedPtr<plzma::InStream> stream;
+            switch (method) {
+                case 0: // data
+                    stream = plzma::makeSharedInStream(backingStore->Data(), backingStore->ByteLength(), InStreamDummyFreeCallback);
+                    break;
+                case 1: // path
+                    stream = plzma::makeSharedInStream(std::move(path));
+                    break;
+                case 2: // multi volume streams
+                    stream = plzma::makeSharedInStream(std::move(multiStreams));
+                    break;
+                default:
+                    break;
+            }
             obj = new InStream(std::move(stream), std::move(backingStore));
             NPLZMA_CATCH_RET(isolate)
             obj->TypedWrap(args.This());
@@ -1686,11 +1758,12 @@ namespace nplzma {
         }
     }
     
-    void OutStream::Erase(const FunctionCallbackInfo<Value> & args) {
+    template<class T>
+    void OutStream<T>::Erase(const FunctionCallbackInfo<Value> & args) {
         Isolate * isolate = args.GetIsolate();
         HandleScope handleScope(isolate);
         Local<Context> context = isolate->GetCurrentContext();
-        OutStream * stream = ObjectWrap::Unwrap<OutStream>(args.Holder());
+        OutStream<T> * stream = OutStream<T>::TypedUnwrap(args.Holder());
         plzma_erase erase = plzma_erase_none;
         if (args.Length() > 0) {
             uint32_t eraseValue = 0;
@@ -1713,11 +1786,12 @@ namespace nplzma {
         plzma_free(data);
     }
     
-    void OutStream::CopyContent(const FunctionCallbackInfo<Value> & args) {
+    template<class T>
+    void OutStream<T>::CopyContent(const FunctionCallbackInfo<Value> & args) {
         Isolate * isolate = args.GetIsolate();
         HandleScope handleScope(isolate);
-        OutStream * stream = ObjectWrap::Unwrap<OutStream>(args.Holder());
-        plzma::Pair<plzma::RawHeapMemory, size_t> content;
+        OutStream<T> * stream = OutStream<T>::TypedUnwrap(args.Holder());
+        plzma::RawHeapMemorySize content;
         NPLZMA_TRY
         content = stream->_stream->copyContent();
         NPLZMA_CATCH_RET(isolate)
@@ -1725,18 +1799,70 @@ namespace nplzma {
         args.GetReturnValue().Set(ArrayBuffer::New(isolate, std::move(backingStore)));
     }
     
-    void OutStream::Opened(Local<String> property, const PropertyCallbackInfo<Value> & info) {
+    template<class T>
+    void OutStream<T>::Opened(Local<String> property, const PropertyCallbackInfo<Value> & info) {
         Isolate * isolate = info.GetIsolate();
         HandleScope handleScope(isolate);
-        OutStream * stream = ObjectWrap::Unwrap<OutStream>(info.Holder());
+        OutStream<T> * stream = OutStream<T>::TypedUnwrap(info.Holder());
         bool opened = false;
         NPLZMA_TRY
         opened = stream->_stream->opened();
         NPLZMA_CATCH_RET(isolate)
         info.GetReturnValue().Set(Boolean::New(isolate, opened));
     }
-    
-    void OutStream::Init(Local<Object> exports) {
+
+    template<>
+    void OutStream<plzma::OutMultiStream>::Streams(Local<String> property, const PropertyCallbackInfo<Value> & info) {
+        Isolate * isolate = info.GetIsolate();
+        HandleScope handleScope(isolate);
+        Local<Context> context = isolate->GetCurrentContext();
+        OutStream<plzma::OutMultiStream> * stream = OutStream<plzma::OutMultiStream>::TypedUnwrap(info.Holder());
+        plzma::OutStreamArray streams;
+        NPLZMA_TRY
+        streams = stream->_stream->streams();
+        NPLZMA_CATCH_RET(isolate)
+        const auto count = streams.count();
+        if (count == 0) {
+            info.GetReturnValue().Set(Array::New(isolate));
+            return;
+        }
+        auto array = Array::New(isolate, count);
+        Local<Value> argv[1];
+        argv[0] = OutStream<plzma::OutStream>::_instantiateWithoutNativeStream.Get(isolate);
+        Local<Function> constructor = OutStream<plzma::OutStream>::_constructor.Get(isolate)->GetFunction(context).ToLocalChecked();
+        TryCatch trycatch(isolate);
+        for (plzma_size_t i = 0; i < count; i++) {
+            auto stream = streams.at(i);
+            if (stream) {
+                MaybeLocal<Object> maybeStreamObject = constructor->NewInstance(context, 1, argv);
+                if (maybeStreamObject.IsEmpty()) {
+                    if (trycatch.HasCaught()) {
+                        trycatch.ReThrow();
+                    } else {
+                        isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, "Can't instantiate OutStream.").ToLocalChecked()));
+                    }
+                    return;
+                }
+                auto streamObject = maybeStreamObject.ToLocalChecked();
+                OutStream<plzma::OutStream> * streamPtr = OutStream<plzma::OutStream>::TypedUnwrap(streamObject);
+                streamPtr->_stream = std::move(stream);
+                auto unused = array->Set(context, i, streamObject);
+                unused.Check();
+            } else {
+                NPLZMA_THROW_ARG1_TYPE_ERROR_RET(isolate, "streams[%llu] is empty.", static_cast<unsigned long long>(i))
+            }
+        }
+        info.GetReturnValue().Set(array);
+    }
+
+    template<class T>
+    void OutStream<T>::Init(Local<Object> exports) {
+        const char * className = nullptr;
+        if (std::is_same<T, plzma::OutStream>::value) {
+            className = "OutStream";
+        } else if (std::is_same<T, plzma::OutMultiStream>::value) {
+            className = "OutMultiStream";
+        }
         Isolate * isolate = exports->GetIsolate();
         HandleScope handleScope(isolate);
         Local<Context> context = isolate->GetCurrentContext();
@@ -1745,59 +1871,58 @@ namespace nplzma {
         Local<Object> dataObject = dataTpl->NewInstance(context).ToLocalChecked();
         
         // Constructor template: 'OutStream' func tpl
-        Local<FunctionTemplate> ctorTpl = FunctionTemplate::New(isolate, OutStream::New, dataObject);
-        ctorTpl->SetClassName(String::NewFromUtf8(isolate, "OutStream").ToLocalChecked());
+        Local<FunctionTemplate> ctorTpl = FunctionTemplate::New(isolate, OutStream<T>::New, dataObject);
+        ctorTpl->SetClassName(String::NewFromUtf8(isolate, className).ToLocalChecked());
         
-        _constructor.Reset(isolate, ctorTpl);
+        OutStream<T>::_constructor.Reset(isolate, ctorTpl);
+        OutStream<T>::_instantiateWithoutNativeStream.Reset(isolate, Symbol::New(isolate));
         
         Local<ObjectTemplate> ctorInstTpl = ctorTpl->InstanceTemplate();
         ctorInstTpl->SetInternalFieldCount(2);
         
         // (new OutStream(...)).<func>(...)
         Local<ObjectTemplate> ctorProtoTpl = ctorTpl->PrototypeTemplate();
-        ctorProtoTpl->Set(String::NewFromUtf8(isolate, "erase").ToLocalChecked(), FunctionTemplate::New(isolate, OutStream::Erase), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
-        ctorProtoTpl->Set(String::NewFromUtf8(isolate, "copyContent").ToLocalChecked(), FunctionTemplate::New(isolate, OutStream::CopyContent), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
+        ctorProtoTpl->Set(String::NewFromUtf8(isolate, "erase").ToLocalChecked(), FunctionTemplate::New(isolate, OutStream<T>::Erase), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
+        ctorProtoTpl->Set(String::NewFromUtf8(isolate, "copyContent").ToLocalChecked(), FunctionTemplate::New(isolate, OutStream<T>::CopyContent), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
         
         // (new OutStream(...)).<prop>
-        ctorInstTpl->SetAccessor(String::NewFromUtf8(isolate, "opened").ToLocalChecked(), OutStream::Opened, nullptr, Local<Value>(), DEFAULT, static_cast<PropertyAttribute>(ReadOnly | DontDelete | DontEnum));
+        ctorInstTpl->SetAccessor(String::NewFromUtf8(isolate, "opened").ToLocalChecked(), OutStream<T>::Opened, nullptr, Local<Value>(), DEFAULT, static_cast<PropertyAttribute>(ReadOnly | DontDelete | DontEnum));
+        if (std::is_same<T, plzma::OutMultiStream>::value) {
+            ctorInstTpl->SetAccessor(String::NewFromUtf8(isolate, "streams").ToLocalChecked(), OutStream<T>::Streams, nullptr, Local<Value>(), DEFAULT, static_cast<PropertyAttribute>(ReadOnly | DontDelete | DontEnum));
+        }
         
         Local<Function> constructor = ctorTpl->GetFunction(context).ToLocalChecked();
         dataObject->SetInternalField(0, constructor);
-        exports->Set(context, String::NewFromUtf8(isolate, "OutStream").ToLocalChecked(), constructor).FromJust();
+        exports->Set(context, String::NewFromUtf8(isolate, className).ToLocalChecked(), constructor).FromJust();
     }
     
-    void OutStream::New(const FunctionCallbackInfo<Value> & args) {
+    template<>
+    void OutStream<plzma::OutStream>::New(const FunctionCallbackInfo<Value> & args) {
         Isolate * isolate = args.GetIsolate();
         HandleScope handleScope(isolate);
         Local<Context> context = isolate->GetCurrentContext();
         if (args.IsConstructCall()) {
             plzma::Path path;
+            bool instantiateWithoutNativeStream = false;
             if (args.Length() > 0) {
-                bool unsupportedArg = true;
-                if (args[0]->IsString()) {
-                    String::Utf8Value str(isolate, args[0]);
-                    NPLZMA_TRY
-                    path.set(*str);
-                    unsupportedArg = false;
-                    NPLZMA_CATCH_RET(isolate)
-                } else if (args[0]->IsObject()) {
-                    Local<Object> inObj = args[0]->ToObject(context).ToLocalChecked();
-                    Path * inPath = Path::TypedUnwrap(inObj);
-                    if (inPath) {
-                        NPLZMA_TRY
-                        path.set(inPath->_path);
-                        unsupportedArg = false;
-                        NPLZMA_CATCH_RET(isolate)
+                bool valueDefined = false;
+                NPLZMA_GET_PATH_FROM_VALUE(isolate, context, args[0], path, valueDefined)
+                if (!valueDefined) {
+                    if (args[0]->StrictEquals(_instantiateWithoutNativeStream.Get(isolate))) {
+                        instantiateWithoutNativeStream = true;
+                    } else {
+                        NPLZMA_THROW_ARG_TYPE_ERROR_RET(isolate, "OutStream(?)")
                     }
                 }
-                if (unsupportedArg) {
-                    NPLZMA_THROW_ARG_TYPE_ERROR_RET(isolate, "OutStream(?)")
-                }
             }
-            OutStream * obj = nullptr;
+            OutStream<plzma::OutStream> * obj = nullptr;
             NPLZMA_TRY
-            auto stream = (args.Length() > 0) ? plzma::makeSharedOutStream(std::move(path)) : plzma::makeSharedOutStream();
-            obj = new OutStream(std::move(stream));
+            if (instantiateWithoutNativeStream) {
+                obj = new OutStream<plzma::OutStream>();
+            } else {
+                auto stream = (args.Length() > 0) ? plzma::makeSharedOutStream(std::move(path)) : plzma::makeSharedOutStream();
+                obj = new OutStream<plzma::OutStream>(std::move(stream));
+            }
             NPLZMA_CATCH_RET(isolate)
             obj->TypedWrap(args.This());
             args.GetReturnValue().Set(args.This());
@@ -1813,6 +1938,93 @@ namespace nplzma {
                     trycatch.ReThrow();
                 } else {
                     isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, "Can't instantiate OutStream.").ToLocalChecked()));
+                }
+                return;
+            }
+            args.GetReturnValue().Set(maybeResult.ToLocalChecked());
+        }
+    }
+
+    template<>
+    void OutStream<plzma::OutMultiStream>::New(const FunctionCallbackInfo<Value> & args) {
+        Isolate * isolate = args.GetIsolate();
+        HandleScope handleScope(isolate);
+        Local<Context> context = isolate->GetCurrentContext();
+        if (args.IsConstructCall()) {
+            plzma::Path dirPath;
+            plzma::String partName;
+            plzma::String partExtension;
+            uint32_t formatValue = 0;
+            plzma_size_t partSize = 0;
+            int method = 0;
+            if (args.Length() > 0) {
+                bool valueDefined = false;
+                NPLZMA_GET_UINT32_FROM_VALUE(context, args[0], partSize, valueDefined)
+                if (valueDefined) {
+                    method = 1;
+                } else if (args.Length() == 5) {
+                    for (int i = 0; i < 5; i++) {
+                        valueDefined = false;
+                        switch (i) {
+                            case 0:
+                                NPLZMA_GET_PATH_FROM_VALUE(isolate, context, args[i], dirPath, valueDefined)
+                                break;
+                            case 1:
+                                NPLZMA_GET_PATH_FROM_VALUE(isolate, context, args[i], partName, valueDefined)
+                                break;
+                            case 2:
+                                NPLZMA_GET_PATH_FROM_VALUE(isolate, context, args[i], partExtension, valueDefined)
+                                break;
+                            case 3:
+                                NPLZMA_GET_UINT32_FROM_VALUE(context, args[i], formatValue, valueDefined)
+                                break;
+                            case 4:
+                                NPLZMA_GET_UINT32_FROM_VALUE(context, args[i], partSize, valueDefined)
+                                break;
+                            default:
+                                break;
+                        }
+                        if (!valueDefined) {
+                            NPLZMA_THROW_ARG_TYPE_ERROR_RET(isolate, "OutMultiStream(?)")
+                        }
+                        method = 2;
+                    }
+                }
+            }
+            if (method == 0) {
+                NPLZMA_THROW_ARG_TYPE_ERROR_RET(isolate, "OutMultiStream(?)")
+            }
+            OutStream<plzma::OutMultiStream> * obj = nullptr;
+            NPLZMA_TRY
+            plzma::SharedPtr<plzma::OutMultiStream> stream;
+            switch (method) {
+                case 1:
+                    stream = plzma::makeSharedOutMultiStream(partSize);
+                    break;
+                case 2:
+                    stream = plzma::makeSharedOutMultiStream(std::move(dirPath), std::move(partName), std::move(partExtension), static_cast<plzma_plzma_multi_stream_part_name_format>(formatValue), partSize);
+                    break;
+                default:
+                    break;
+            }
+            obj = new OutStream<plzma::OutMultiStream>(std::move(stream));
+            NPLZMA_CATCH_RET(isolate)
+            obj->TypedWrap(args.This());
+            args.GetReturnValue().Set(args.This());
+        } else {
+            Local<Function> constructor = args.Data().As<Object>()->GetInternalField(0).As<Function>();
+            int argc = 0;
+            Local<Value> argv[5];
+            for (int i = 0; i < args.Length() && i < 5; i++) {
+                argv[argc++] = args[i];
+            }
+            TryCatch trycatch(isolate);
+            MaybeLocal<Object> maybeResult = constructor->NewInstance(context, argc, argv);
+            if (maybeResult.IsEmpty()) {
+                if (trycatch.HasCaught()) {
+                    trycatch.ReThrow();
+                } else {
+                    isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, "Can't instantiate OutMultiStream.").ToLocalChecked()));
                 }
                 return;
             }
@@ -2082,23 +2294,9 @@ namespace nplzma {
             plzma_size_t index = 0;
             bool unsupportedArg1 = false, unsupportedArg2 = false;
             if (args.Length() > 0) {
-                unsupportedArg1 = true;
-                if (args[0]->IsString()) {
-                    String::Utf8Value str(isolate, args[0]);
-                    NPLZMA_TRY
-                    path.set(*str);
-                    unsupportedArg1 = false;
-                    NPLZMA_CATCH_RET(isolate)
-                } else if (args[0]->IsObject()) {
-                    Local<Object> inObj = args[0]->ToObject(context).ToLocalChecked();
-                    Path * inPath = Path::TypedUnwrap(inObj);
-                    if (inPath) {
-                        NPLZMA_TRY
-                        path.set(inPath->_path);
-                        unsupportedArg1 = false;
-                        NPLZMA_CATCH_RET(isolate)
-                    }
-                }
+                bool valueDefined = false;
+                NPLZMA_GET_PATH_FROM_VALUE(isolate, context, args[0], path, valueDefined)
+                unsupportedArg1 = !valueDefined;
             }
             if (args.Length() > 1) {
                 uint32_t indexValue = 0;
@@ -2312,9 +2510,9 @@ namespace nplzma {
         stat = path->_path.stat();
         NPLZMA_CATCH_RET(isolate)
         statObject->DefineOwnProperty(context, String::NewFromUtf8(isolate, "size").ToLocalChecked(), BigInt::NewFromUnsigned(isolate, stat.size), static_cast<PropertyAttribute>(ReadOnly | DontDelete)).Check();
-        statObject->DefineOwnProperty(context, String::NewFromUtf8(isolate, "creation").ToLocalChecked(), Date::New(context, stat.creation * 1000).ToLocalChecked(), static_cast<PropertyAttribute>(ReadOnly | DontDelete)).Check();
-        statObject->DefineOwnProperty(context, String::NewFromUtf8(isolate, "lastAccess").ToLocalChecked(), Date::New(context, stat.last_access * 1000).ToLocalChecked(), static_cast<PropertyAttribute>(ReadOnly | DontDelete)).Check();
-        statObject->DefineOwnProperty(context, String::NewFromUtf8(isolate, "lastModification").ToLocalChecked(), Date::New(context, stat.last_modification * 1000).ToLocalChecked(), static_cast<PropertyAttribute>(ReadOnly | DontDelete)).Check();
+        statObject->DefineOwnProperty(context, String::NewFromUtf8(isolate, "creation").ToLocalChecked(), Date::New(context, stat.timestamp.creation * 1000).ToLocalChecked(), static_cast<PropertyAttribute>(ReadOnly | DontDelete)).Check();
+        statObject->DefineOwnProperty(context, String::NewFromUtf8(isolate, "lastAccess").ToLocalChecked(), Date::New(context, stat.timestamp.last_access * 1000).ToLocalChecked(), static_cast<PropertyAttribute>(ReadOnly | DontDelete)).Check();
+        statObject->DefineOwnProperty(context, String::NewFromUtf8(isolate, "lastModification").ToLocalChecked(), Date::New(context, stat.timestamp.last_modification * 1000).ToLocalChecked(), static_cast<PropertyAttribute>(ReadOnly | DontDelete)).Check();
         info.GetReturnValue().Set(statObject);
     }
     
@@ -2469,6 +2667,53 @@ namespace nplzma {
         }
         args.GetReturnValue().Set(pathObject);
     }
+
+    void Path::Appending(const FunctionCallbackInfo<Value> & args) {
+        Isolate * isolate = args.GetIsolate();
+        HandleScope handleScope(isolate);
+        Local<Context> context = isolate->GetCurrentContext();
+        Local<Object> pathObject = args.Holder();
+        Path * path = ObjectWrap::Unwrap<Path>(pathObject);
+        plzma::Path resultPath;
+        bool unsupportedArg = true;
+        if (args.Length() > 0) {
+            if (args[0]->IsString()) {
+                String::Utf8Value str(isolate, args[0]);
+                NPLZMA_TRY
+                resultPath = path->_path.appending(*str);
+                unsupportedArg = false;
+                NPLZMA_CATCH_RET(isolate)
+            } else if (args[0]->IsObject()) {
+                auto inObj = args[0]->ToObject(context).ToLocalChecked();
+                Path * inPath = Path::TypedUnwrap(inObj);
+                if (inPath) {
+                    NPLZMA_TRY
+                    resultPath = path->_path.appending(inPath->_path);
+                    unsupportedArg = false;
+                    NPLZMA_CATCH_RET(isolate)
+                }
+            }
+        }
+        if (unsupportedArg) {
+            NPLZMA_THROW_ARG_TYPE_ERROR_RET(isolate, "appending(?)")
+        }
+        Local<Function> constructor = _constructor.Get(isolate)->GetFunction(context).ToLocalChecked();
+        Local<Value> argv[1];
+        TryCatch trycatch(isolate);
+        MaybeLocal<Object> maybeResultPathObject = constructor->NewInstance(context, 0, argv);
+        if (maybeResultPathObject.IsEmpty()) {
+            if (trycatch.HasCaught()) {
+                trycatch.ReThrow();
+            } else {
+                isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, "Can't instantiate Path.").ToLocalChecked()));
+            }
+            return;
+        }
+        Local<Object> resultPathObject = maybeResultPathObject.ToLocalChecked();
+        Path * resultPathObjectPath = Path::TypedUnwrap(resultPathObject);
+        resultPathObjectPath->_path = std::move(resultPath);
+        args.GetReturnValue().Set(resultPathObject);
+    }
     
     void Path::AppendRandomComponent(const FunctionCallbackInfo<Value> & args) {
         Isolate * isolate = args.GetIsolate();
@@ -2481,6 +2726,34 @@ namespace nplzma {
         args.GetReturnValue().Set(pathObject);
     }
     
+    void Path::AppendingRandomComponent(const FunctionCallbackInfo<Value> & args) {
+        Isolate * isolate = args.GetIsolate();
+        HandleScope handleScope(isolate);
+        Local<Context> context = isolate->GetCurrentContext();
+        Local<Object> pathObject = args.Holder();
+        Path * path = ObjectWrap::Unwrap<Path>(pathObject);
+        plzma::Path resultPath;
+        NPLZMA_TRY
+        resultPath = path->_path.appendingRandomComponent();
+        NPLZMA_CATCH_RET(isolate)
+        Local<Function> constructor = _constructor.Get(isolate)->GetFunction(context).ToLocalChecked();
+        Local<Value> argv[1];
+        TryCatch trycatch(isolate);
+        MaybeLocal<Object> maybeResultPathObject = constructor->NewInstance(context, 0, argv);
+        if (maybeResultPathObject.IsEmpty()) {
+            if (trycatch.HasCaught()) {
+                trycatch.ReThrow();
+            } else {
+                isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, "Can't instantiate Path.").ToLocalChecked()));
+            }
+            return;
+        }
+        Local<Object> resultPathObject = maybeResultPathObject.ToLocalChecked();
+        Path * resultPathObjectPath = Path::TypedUnwrap(resultPathObject);
+        resultPathObjectPath->_path = std::move(resultPath);
+        args.GetReturnValue().Set(resultPathObject);
+    }
+
     void Path::LastComponent(const FunctionCallbackInfo<Value> & args) {
         Isolate * isolate = args.GetIsolate();
         HandleScope handleScope(isolate);
@@ -2516,6 +2789,34 @@ namespace nplzma {
         path->_path.removeLastComponent();
         NPLZMA_CATCH_RET(isolate)
         args.GetReturnValue().Set(pathObject);
+    }
+
+    void Path::RemovingLastComponent(const FunctionCallbackInfo<Value> & args) {
+        Isolate * isolate = args.GetIsolate();
+        HandleScope handleScope(isolate);
+        Local<Context> context = isolate->GetCurrentContext();
+        Local<Object> pathObject = args.Holder();
+        Path * path = ObjectWrap::Unwrap<Path>(pathObject);
+        plzma::Path resultPath;
+        NPLZMA_TRY
+        resultPath = path->_path.removingLastComponent();
+        NPLZMA_CATCH_RET(isolate)
+        Local<Function> constructor = _constructor.Get(isolate)->GetFunction(context).ToLocalChecked();
+        Local<Value> argv[1];
+        TryCatch trycatch(isolate);
+        MaybeLocal<Object> maybeResultPathObject = constructor->NewInstance(context, 0, argv);
+        if (maybeResultPathObject.IsEmpty()) {
+            if (trycatch.HasCaught()) {
+                trycatch.ReThrow();
+            } else {
+                isolate->ThrowException(Exception::Error(String::NewFromUtf8(isolate, "Can't instantiate Path.").ToLocalChecked()));
+            }
+            return;
+        }
+        Local<Object> resultPathObject = maybeResultPathObject.ToLocalChecked();
+        Path * resultPathObjectPath = Path::TypedUnwrap(resultPathObject);
+        resultPathObjectPath->_path = std::move(resultPath);
+        args.GetReturnValue().Set(resultPathObject);
     }
     
     void Path::Remove(const FunctionCallbackInfo<Value> & args) {
@@ -2596,9 +2897,12 @@ namespace nplzma {
         ctorProtoTpl->Set(String::NewFromUtf8(isolate, "clear").ToLocalChecked(), FunctionTemplate::New(isolate, Path::Clear), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
         ctorProtoTpl->Set(String::NewFromUtf8(isolate, "set").ToLocalChecked(), FunctionTemplate::New(isolate, Path::Set), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
         ctorProtoTpl->Set(String::NewFromUtf8(isolate, "append").ToLocalChecked(), FunctionTemplate::New(isolate, Path::Append), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
+        ctorProtoTpl->Set(String::NewFromUtf8(isolate, "appending").ToLocalChecked(), FunctionTemplate::New(isolate, Path::Appending), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
         ctorProtoTpl->Set(String::NewFromUtf8(isolate, "appendRandomComponent").ToLocalChecked(), FunctionTemplate::New(isolate, Path::AppendRandomComponent), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
+        ctorProtoTpl->Set(String::NewFromUtf8(isolate, "appendingRandomComponent").ToLocalChecked(), FunctionTemplate::New(isolate, Path::AppendingRandomComponent), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
         ctorProtoTpl->Set(String::NewFromUtf8(isolate, "lastComponent").ToLocalChecked(), FunctionTemplate::New(isolate, Path::LastComponent), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
         ctorProtoTpl->Set(String::NewFromUtf8(isolate, "removeLastComponent").ToLocalChecked(), FunctionTemplate::New(isolate, Path::RemoveLastComponent), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
+        ctorProtoTpl->Set(String::NewFromUtf8(isolate, "removingLastComponent").ToLocalChecked(), FunctionTemplate::New(isolate, Path::RemovingLastComponent), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
         ctorProtoTpl->Set(String::NewFromUtf8(isolate, "remove").ToLocalChecked(), FunctionTemplate::New(isolate, Path::Remove), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
         ctorProtoTpl->Set(String::NewFromUtf8(isolate, "createDir").ToLocalChecked(), FunctionTemplate::New(isolate, Path::CreateDir), static_cast<PropertyAttribute>(ReadOnly | DontEnum | DontDelete));
         
@@ -2622,26 +2926,12 @@ namespace nplzma {
         if (args.IsConstructCall()) {
             plzma::Path path;
             if (args.Length() > 0) {
-                bool unsupportedArg = true;
-                if (args[0]->IsString()) {
-                    String::Utf8Value str(isolate, args[0]);
-                    NPLZMA_TRY
-                    path.set(*str);
-                    unsupportedArg = false;
-                    NPLZMA_CATCH_RET(isolate)
-                } else if (args[0]->IsObject()) {
-                    Local<Object> inObj = args[0]->ToObject(context).ToLocalChecked();
-                    Path * inPath = Path::TypedUnwrap(inObj);
-                    if (inPath) {
-                        NPLZMA_TRY
-                        path = inPath->_path;
-                        unsupportedArg = false;
-                        NPLZMA_CATCH_RET(isolate)
-                    }
-                } else if (args[0]->IsNullOrUndefined()) {
-                    unsupportedArg = false;
+                bool valueDefined = false;
+                NPLZMA_GET_PATH_FROM_VALUE(isolate, context, args[0], path, valueDefined)
+                if (!valueDefined && args[0]->IsNullOrUndefined()) {
+                    valueDefined = true;
                 }
-                if (unsupportedArg) {
+                if (!valueDefined) {
                     NPLZMA_THROW_ARG_TYPE_ERROR_RET(isolate, "Path(?)")
                 }
             }
@@ -2655,9 +2945,7 @@ namespace nplzma {
             Local<Function> constructor = args.Data().As<Object>()->GetInternalField(0).As<Function>();
             int argc = 0;
             Local<Value> argv[1];
-            if (args.Length() > 0) {
-                argv[argc++] = args[0];
-            }
+            if (args.Length() > 0) { argv[argc++] = args[0]; }
             TryCatch trycatch(isolate);
             MaybeLocal<Object> maybeResult = constructor->NewInstance(context, argc, argv);
             if (maybeResult.IsEmpty()) {
@@ -2760,6 +3048,11 @@ namespace nplzma {
         openDirModeObject->DefineOwnProperty(context, String::NewFromUtf8(isolate, "followSymlinks").ToLocalChecked(), Uint32::NewFromUnsigned(isolate, plzma_open_dir_mode_follow_symlinks), static_cast<PropertyAttribute>(ReadOnly | DontDelete)).Check();
         exports->Set(context, String::NewFromUtf8(isolate, "OpenDirMode").ToLocalChecked(), openDirModeObject).FromJust();
         
+        // plzma_plzma_multi_stream_part_name_format
+        Local<Object> multiStreamPartNameFormatObject = Object::New(isolate);
+        multiStreamPartNameFormatObject->DefineOwnProperty(context, String::NewFromUtf8(isolate, "nameExt00x").ToLocalChecked(), Uint32::NewFromUnsigned(isolate, plzma_plzma_multi_stream_part_name_format_name_ext_00x), static_cast<PropertyAttribute>(ReadOnly | DontDelete)).Check();
+        exports->Set(context, String::NewFromUtf8(isolate, "MultiStreamPartNameFormat").ToLocalChecked(), multiStreamPartNameFormatObject).FromJust();
+        
         // module properties
         exports->SetNativeDataProperty(context, String::NewFromUtf8(isolate, "version").ToLocalChecked(), GetVersion, nullptr, Local<Value>(), static_cast<PropertyAttribute>(ReadOnly | DontDelete)).Check();
         exports->SetNativeDataProperty(context, String::NewFromUtf8(isolate, "streamReadSize").ToLocalChecked(), GetGlobalUInt32Property, SetGlobalUInt32Property, Uint32::NewFromUnsigned(isolate, 1), static_cast<PropertyAttribute>(DontDelete)).Check();
@@ -2774,7 +3067,8 @@ static void PlzmaModuleInit(Local<Object> exports) {
     nplzma::Path::Init(exports);
     nplzma::Item::Init(exports);
     nplzma::InStream::Init(exports);
-    nplzma::OutStream::Init(exports);
+    nplzma::OutStream<plzma::OutStream>::Init(exports);
+    nplzma::OutStream<plzma::OutMultiStream>::Init(exports);
     nplzma::Decoder::Init(exports);
     nplzma::Encoder::Init(exports);
 }

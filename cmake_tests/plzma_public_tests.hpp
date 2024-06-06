@@ -3,7 +3,7 @@
  *
  * The MIT License (MIT)
  *
- * Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+ * Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to deal
@@ -36,13 +36,13 @@
 #undef LIBPLZMA_BUILD
 #endif
 
-#include <libplzma.hpp>
-#include <libplzma.h>
-
 #include <iostream>
 #include <memory>
-#include <assert.h>
-#include <string.h>
+#include <cassert>
+#include <cstring>
+
+#include <libplzma.hpp>
+#include <libplzma.h>
 
 #include "../src/plzma_private.hpp"
 #include "../src/plzma_common.hpp"
@@ -62,7 +62,7 @@
 #define PLZMA_TESTS_TOSTRING(x) PLZMA_TESTS_STRINGIFY(x)
 
 #define PLZMA_TESTS_ASSERT(V) if(!(V)){ \
-std::cout << "\'" << PLZMA_TESTS_TOSTRING(V) << "\' Failed at line: " << __LINE__ << std::endl; \
+std::flush(std::cout) << "\'" << PLZMA_TESTS_TOSTRING(V) << "\' Failed at line: " << __LINE__ << std::endl; \
 assert(0); \
 return __LINE__; \
 } \
