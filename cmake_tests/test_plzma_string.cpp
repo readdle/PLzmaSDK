@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -89,7 +89,7 @@ int test_plzma_string_test1(void) {
 }
 
 int main(int argc, char* argv[]) {
-    std::cout << plzma_version() << std::endl;
+    std::flush(std::cout) << plzma_version() << std::endl;
     int ret = 0;
     
     if ( (ret = test_plzma_string_test1()) ) {
@@ -103,6 +103,10 @@ int main(int argc, char* argv[]) {
     if ( (ret = test_plzma_string_test4()) ) {
         return ret;
     }
-        
+    
+//    while (1) {
+//        usleep(50);
+//    }
+    
     return ret;
 }

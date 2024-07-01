@@ -6,7 +6,7 @@
 
 #include "Lzma2Decoder.h"
 
-#ifndef EXTRACT_ONLY
+#ifndef Z7_EXTRACT_ONLY
 #include "Lzma2Encoder.h"
 #endif
 
@@ -23,6 +23,6 @@ REGISTER_CODEC_E(LZMA2,
 
 #if defined(LIBPLZMA_USING_REGISTRATORS)
 uint64_t plzma_registrator_12(void) {
-    return static_cast<uint64_t>(NCompress::NLzma2::g_CodecInfo.Id);
+    return static_cast<uint64_t>(NCompress::NLzma2::g_CodecInfo_LZMA2.Id);
 }
 #endif

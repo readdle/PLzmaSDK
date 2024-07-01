@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -51,7 +51,7 @@ namespace plzma {
     
     class ExtractCallback final :
         public IArchiveExtractCallback,
-        public IArchiveExtractCallbackMessage,
+        public IArchiveExtractCallbackMessage2,
         public ICryptoGetTextPassword,
         public ICryptoGetTextPassword2,
         public ICompressProgressInfo,
@@ -80,18 +80,27 @@ namespace plzma {
         LIBPLZMA_NON_COPYABLE_NON_MOVABLE(ExtractCallback)
         
     public:
-        MY_UNKNOWN_IMP4(IArchiveExtractCallbackMessage, ICryptoGetTextPassword, ICryptoGetTextPassword2, ICompressProgressInfo)
+        Z7_COM_UNKNOWN_IMP_4(IArchiveExtractCallbackMessage2, ICryptoGetTextPassword, ICryptoGetTextPassword2, ICompressProgressInfo)
         
-        INTERFACE_IArchiveExtractCallback(;)
-        INTERFACE_IArchiveExtractCallbackMessage(;)
+        // IProgress
+        STDMETHOD(SetTotal)(UInt64 total) throw() override final;
+        STDMETHOD(SetCompleted)(const UInt64 *completeValue) throw() override final;
         
-        STDMETHOD(SetRatioInfo)(const UInt64 * inSize, const UInt64 * outSize);
+        // IArchiveExtractCallback
+        STDMETHOD(GetStream)(UInt32 index, ISequentialOutStream **outStream, Int32 askExtractMode) throw() override final;
+        STDMETHOD(PrepareOperation)(Int32 askExtractMode) throw() override final;
+        STDMETHOD(SetOperationResult)(Int32 opRes) throw() override final;
+        
+        // IArchiveExtractCallbackMessage2
+        STDMETHOD(ReportExtractResult)(UInt32 indexType, UInt32 index, Int32 opRes) throw() override final;
+        
+        STDMETHOD(SetRatioInfo)(const UInt64 * inSize, const UInt64 * outSize) throw() override final;
         
         // ICryptoGetTextPassword
-        STDMETHOD(CryptoGetTextPassword)(BSTR * password);
+        STDMETHOD(CryptoGetTextPassword)(BSTR * password) throw() override final;
         
         // ICryptoGetTextPassword2
-        STDMETHOD(CryptoGetTextPassword2)(Int32 * passwordIsDefined, BSTR * password);
+        STDMETHOD(CryptoGetTextPassword2)(Int32 * passwordIsDefined, BSTR * password) throw() override final;
         
         void process(const Int32 mode, const SharedPtr<ItemArray> & items, const Path & path, const bool itemsFullPath = true);
         void process(const Int32 mode, const Path & path, const bool itemsFullPath = true);
@@ -99,9 +108,14 @@ namespace plzma {
         void process(const Int32 mode, const SharedPtr<ItemArray> & items);
         void process(const Int32 mode);
         void abort();
+        
         ExtractCallback(const CMyComPtr<IInArchive> & archive,
+#if !defined(LIBPLZMA_NO_CRYPTO)
                         const String & passwd,
+#endif
+#if !defined(LIBPLZMA_NO_PROGRESS)
                         const SharedPtr<Progress> & progress,
+#endif
                         const plzma_file_type type);
         virtual ~ExtractCallback() { }
     };

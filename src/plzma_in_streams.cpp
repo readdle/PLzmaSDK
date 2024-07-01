@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -39,17 +39,17 @@ namespace plzma {
 
     void InStreamBase::retain() {
 #if defined(LIBPLZMA_THREAD_UNSAFE)
-        LIBPLZMA_RETAIN_IMPL(__m_RefCount)
+        LIBPLZMA_RETAIN_IMPL(_m_RefCount)
 #else
-        LIBPLZMA_RETAIN_LOCKED_IMPL(__m_RefCount, _mutex)
+        LIBPLZMA_RETAIN_LOCKED_IMPL(_m_RefCount, _mutex)
 #endif
     }
     
     void InStreamBase::release() {
 #if defined(LIBPLZMA_THREAD_UNSAFE)
-        LIBPLZMA_RELEASE_IMPL(__m_RefCount)
+        LIBPLZMA_RELEASE_IMPL(_m_RefCount)
 #else
-        LIBPLZMA_RELEASE_LOCKED_IMPL(__m_RefCount, _mutex)
+        LIBPLZMA_RELEASE_LOCKED_IMPL(_m_RefCount, _mutex)
 #endif
     }
     
@@ -58,9 +58,9 @@ namespace plzma {
     }
     
     /// InFileStream
-    STDMETHODIMP InFileStream::Read(void * data, UInt32 size, UInt32 * processedSize) {
+    STDMETHODIMP InFileStream::Read(void * data, UInt32 size, UInt32 * processedSize) throw() {
         if (_file) {
-            const size_t processed = (size > 0) ? fread(data, 1, size, _file) : 0;
+            const size_t processed = (size > 0) ? ::fread(data, 1, size, _file) : 0;
             LIBPLZMA_CAST_VALUE_TO_PTR(processedSize, UInt32, processed)
             return S_OK;
         }
@@ -68,7 +68,7 @@ namespace plzma {
         return S_FALSE;
     }
     
-    STDMETHODIMP InFileStream::Seek(Int64 offset, UInt32 seekOrigin, UInt64 * newPosition) {
+    STDMETHODIMP InFileStream::Seek(Int64 offset, UInt32 seekOrigin, UInt64 * newPosition) throw() {
         if (_file && fileSeek(_file, offset, seekOrigin) == 0) {
             LIBPLZMA_CAST_VALUE_TO_PTR(newPosition, UInt64, fileTell(_file))
             return S_OK;
@@ -101,7 +101,7 @@ namespace plzma {
     void InFileStream::close() {
         LIBPLZMA_LOCKGUARD(lock, _mutex)
         if (_file) {
-            fclose(_file);
+            ::fclose(_file);
             _file = nullptr;
         }
     }
@@ -145,19 +145,19 @@ namespace plzma {
     
     InFileStream::~InFileStream() noexcept {
         if (_file) {
-            fclose(_file);
+            ::fclose(_file);
         }
     }
     
     /// InMemStream
-    STDMETHODIMP InMemStream::Read(void * data, UInt32 size, UInt32 * processedSize) {
+    STDMETHODIMP InMemStream::Read(void * data, UInt32 size, UInt32 * processedSize) throw() {
         if (_opened) {
             const UInt64 available = _size - _offset;
             size_t sizeToRead = 0;
             if (available > 0) {
                 sizeToRead = (size <= available) ? size : static_cast<size_t>(available);
                 uint8_t * m = static_cast<uint8_t *>(_memory) + _offset;
-                memcpy(data, m, sizeToRead);
+                ::memcpy(data, m, sizeToRead);
                 _offset += sizeToRead;
             }
             LIBPLZMA_CAST_VALUE_TO_PTR(processedSize, UInt32, sizeToRead)
@@ -167,7 +167,7 @@ namespace plzma {
         return S_FALSE;
     }
     
-    STDMETHODIMP InMemStream::Seek(Int64 offset, UInt32 seekOrigin, UInt64 * newPosition) {
+    STDMETHODIMP InMemStream::Seek(Int64 offset, UInt32 seekOrigin, UInt64 * newPosition) throw() {
         if (_opened) {
             Int64 finalOffset;
             switch (seekOrigin) {
@@ -193,7 +193,7 @@ namespace plzma {
             }
             _offset = 0;
         }
-        LIBPLZMA_CAST_VALUE_TO_PTR(newPosition, UInt64, _offset);
+        LIBPLZMA_CAST_VALUE_TO_PTR(newPosition, UInt64, 0);
         return S_FALSE;
     }
     
@@ -222,7 +222,7 @@ namespace plzma {
         if (_memory && _size > 0) {
             switch (eraseType) {
                 case plzma_erase_zero:
-                    memset(_memory, 0, static_cast<size_t>(_size));
+                    ::memset(_memory, 0, static_cast<size_t>(_size));
                     break;
                 default:
                     break;
@@ -237,7 +237,7 @@ namespace plzma {
             if (m) {
                 _memory = m;
                 _size = static_cast<UInt64>(size);
-                memcpy(m, memory, size);
+                ::memcpy(m, memory, size);
             } else {
                 throw Exception(plzma_error_code_not_enough_memory, "Can't allocate memory for in-stream.", __FILE__, __LINE__);
             }
@@ -276,7 +276,7 @@ namespace plzma {
     
     /// InMemStream
     
-    STDMETHODIMP InCallbackStream::Seek(Int64 offset, UInt32 seekOrigin, UInt64 * newPosition) {
+    STDMETHODIMP InCallbackStream::Seek(Int64 offset, UInt32 seekOrigin, UInt64 * newPosition) throw() {
         if (_opened) {
             UInt64 newPos = 0;
             if (_seekCallback(_context.context, offset, seekOrigin, &newPos)) {
@@ -288,7 +288,7 @@ namespace plzma {
         return S_FALSE;
     }
 
-    STDMETHODIMP InCallbackStream::Read(void * data, UInt32 size, UInt32 * processedSize) {
+    STDMETHODIMP InCallbackStream::Read(void * data, UInt32 size, UInt32 * processedSize) throw() {
         if (_opened) {
             UInt32 procSize = 0;
             if (_readCallback(_context.context, data, size, &procSize)) {
@@ -354,7 +354,98 @@ namespace plzma {
             _context.deinitializer(_context.context);
         }
     }
+
+    /// InMultiStream
+
+    STDMETHODIMP InMultiStream::Seek(Int64 offset, UInt32 seekOrigin, UInt64 * newPosition) throw() {
+        return _opened ? _stream.Seek(offset, seekOrigin, newPosition) : S_FALSE;
+    }
+
+    STDMETHODIMP InMultiStream::Read(void * data, UInt32 size, UInt32 * processedSize) throw() {
+        return _opened ? _stream.Read(data, size, processedSize) : S_FALSE;
+    }
+
+    void InMultiStream::open() {
+        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        if (_opened) {
+            return;
+        }
+        for (plzma_size_t i = 0, n = _streams.count(); i < n; i++) {
+            auto stream = _streams.at(i);
+            stream->open();
+            UInt64 size = 0;
+            HRESULT res = stream->Seek(0, STREAM_SEEK_END, &size);
+            if (res == S_OK) {
+                res = stream->Seek(0, STREAM_SEEK_SET, nullptr);
+            }
+            if (res != S_OK) {
+                Exception exception(plzma_error_code_invalid_arguments, "Can't open in-stream.", __FILE__, __LINE__);
+                char reason[64] = { 0 };
+                ::snprintf(reason, 64, "Can't seek sub-stream at index %llu.", static_cast<unsigned long long>(i));
+                exception.setReason(reason, nullptr);
+                throw exception;
+            }
+            CMultiStream::CSubStreamInfo info;
+            info.Size = size;
+            info.Stream = CMyComPtr<IInStream>(stream.get());
+            _stream.Streams.Add(info);
+            _stream.Init();
+        }
+        _opened = true;
+    }
+
+    void InMultiStream::close() {
+        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        for (plzma_size_t i = 0, n = _streams.count(); i < n; i++) {
+            _streams.at(i)->close();
+        }
+        _stream.Streams.ClearAndFree();
+        _opened = false;
+    }
     
+    bool InMultiStream::opened() const {
+        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        return _opened;
+    }
+
+    bool InMultiStream::erase(const plzma_erase eraseType) {
+        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        if (_opened) {
+            return false;
+        }
+        for (plzma_size_t i = 0, n = _streams.count(); i < n; i++) {
+            if (!_streams.at(i)->erase(eraseType)) {
+                return false;
+            }
+        }
+        return true;
+    }
+    
+    InMultiStream::InMultiStream(InStreamArray && streams) {
+        auto inStreams = static_cast<InStreamArray &&>(streams);
+        if (inStreams.count() == 0) {
+            Exception exception(plzma_error_code_invalid_arguments, "Can't instantiate in-stream without sub-streams.", __FILE__, __LINE__);
+            exception.setReason("Sub-streams size is zero.", nullptr);
+            throw exception;
+        }
+        for (plzma_size_t i = 0, n = inStreams.count(); i < n; i++) {
+            const auto stream = inStreams.at(i);
+            if (stream) {
+                _streams.push(stream.cast<InStreamBase>());
+            } else {
+                _streams.clear();
+                Exception exception(plzma_error_code_invalid_arguments, "Can't instantiate in-stream.", __FILE__, __LINE__);
+                char reason[64] = { 0 };
+                ::snprintf(reason, 64, "Sub-stream at index %llu is null.", static_cast<unsigned long long>(i));
+                exception.setReason(reason, nullptr);
+                throw exception;
+            }
+        }
+    }
+
+    InMultiStream::~InMultiStream() noexcept {
+    
+    }
     
     SharedPtr<InStream> makeSharedInStream(const Path & path) {
         return SharedPtr<InStream>(new InFileStream(path));
@@ -380,6 +471,10 @@ namespace plzma {
         return SharedPtr<InStream>(new InCallbackStream(openCallback, closeCallback, seekCallback, readCallback, context));
     }
 
+    SharedPtr<InStream> makeSharedInStream(InStreamArray && streams) {
+        return SharedPtr<InStream>(new InMultiStream(static_cast<InStreamArray &&>(streams)));
+    }
+
 } // namespace plzma
 
 
@@ -389,7 +484,7 @@ namespace plzma {
 
 using namespace plzma;
 
-plzma_in_stream plzma_in_stream_create_with_path(plzma_path * LIBPLZMA_NONNULL path) {
+plzma_in_stream plzma_in_stream_create_with_path(const plzma_path * LIBPLZMA_NONNULL path) {
     LIBPLZMA_C_BINDINGS_CREATE_OBJECT_FROM_TRY(plzma_in_stream, path)
     auto stream = makeSharedInStream(*static_cast<const Path *>(path->object));
     createdCObject.object = static_cast<void *>(stream.take());
@@ -431,6 +526,13 @@ plzma_in_stream plzma_in_stream_create_with_callbacks(plzma_in_stream_open_callb
     LIBPLZMA_C_BINDINGS_CREATE_OBJECT_CATCH
 }
 
+plzma_in_stream plzma_in_stream_create_with_stream_arraym(plzma_in_stream_array * LIBPLZMA_NONNULL stream_array) {
+    LIBPLZMA_C_BINDINGS_CREATE_OBJECT_FROM_TRY(plzma_in_stream, stream_array)
+    auto stream = makeSharedInStream(static_cast<InStreamArray &&>(*static_cast<InStreamArray *>(stream_array->object)));
+    createdCObject.object = static_cast<void *>(stream.take());
+    LIBPLZMA_C_BINDINGS_CREATE_OBJECT_CATCH
+}
+
 bool plzma_in_stream_opened(plzma_in_stream * LIBPLZMA_NONNULL stream) {
     LIBPLZMA_C_BINDINGS_OBJECT_EXEC_TRY_RETURN(stream, false)
     return static_cast<InStream *>(stream->object)->opened();
@@ -448,6 +550,30 @@ void plzma_in_stream_release(plzma_in_stream * LIBPLZMA_NONNULL stream) {
     SharedPtr<InStream> streamSPtr;
     streamSPtr.assign(static_cast<InStream *>(stream->object));
     stream->object = nullptr;
+}
+
+plzma_in_stream_array plzma_in_stream_array_create_with_capacity(const plzma_size_t capacity) {
+    LIBPLZMA_C_BINDINGS_CREATE_OBJECT_TRY(plzma_in_stream_array)
+    createdCObject.object = static_cast<void *>(new InStreamArray(capacity));
+    LIBPLZMA_C_BINDINGS_CREATE_OBJECT_CATCH
+}
+
+plzma_size_t plzma_in_stream_array_count(const plzma_in_stream_array * LIBPLZMA_NONNULL array) {
+    return array->exception ? 0 : static_cast<const InStreamArray *>(array->object)->count();
+}
+
+void plzma_in_stream_array_add(plzma_in_stream_array * LIBPLZMA_NONNULL array,
+                               const plzma_in_stream * LIBPLZMA_NONNULL stream) {
+    LIBPLZMA_C_BINDINGS_OBJECT_EXEC_TRY(array)
+    SharedPtr<InStream> streamSPtr(static_cast<InStream *>(stream->object));
+    static_cast<InStreamArray *>(array->object)->push(static_cast<SharedPtr<InStream> &&>(streamSPtr));
+    LIBPLZMA_C_BINDINGS_OBJECT_EXEC_CATCH(array)
+}
+
+void plzma_in_stream_array_release(plzma_in_stream_array * LIBPLZMA_NONNULL array) {
+    plzma_object_exception_release(array);
+    delete static_cast<InStreamArray *>(array->object);
+    array->object = nullptr;
 }
 
 #endif // !LIBPLZMA_NO_C_BINDINGS

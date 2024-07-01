@@ -2,7 +2,7 @@
 #
 # The MIT License (MIT)
 #
-# Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+# Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -59,6 +59,7 @@ set(LIBPLZMA_TESTS
   "test_plzma_compress"
   "test_plzma_containers"
   "test_plzma_extract"
+  "test_plzma_multivolume"
   "test_plzma_open"
   "test_plzma_path"
   "test_plzma_streams"
@@ -86,3 +87,4 @@ foreach(LIBPLZMA_TEST ${LIBPLZMA_TESTS})
 #  install(TARGETS ${LIBPLZMA_TEST} DESTINATION bin)
 #  install(TARGETS "${LIBPLZMA_TEST}_static" DESTINATION bin)
 endforeach()
+

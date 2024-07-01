@@ -1,13 +1,28 @@
 // UniqBlocks.h
 
-#ifndef __UNIQ_BLOCKS_H
-#define __UNIQ_BLOCKS_H
+#ifndef ZIP7_INC_UNIQ_BLOCKS_H
+#define ZIP7_INC_UNIQ_BLOCKS_H
 
-#include "../../Common/MyTypes.h"
 #include "../../Common/MyBuffer.h"
-#include "../../Common/MyVector.h"
+#include "../../Common/MyString.h"
 
-struct CUniqBlocks final
+struct C_UInt32_UString_Map Z7_final
+{
+  CRecordVector<UInt32> Numbers;
+  UStringVector Strings;
+  
+  void Add_UInt32(const UInt32 n)
+  {
+    Numbers.AddToUniqueSorted(n);
+  }
+  int Find(const UInt32 n)
+  {
+    return Numbers.FindInSorted(n);
+  }
+};
+
+
+struct CUniqBlocks Z7_final
 {
   CObjectVector<CByteBuffer> Bufs;
   CUIntVector Sorted;
@@ -17,19 +32,10 @@ struct CUniqBlocks final
   UInt64 GetTotalSizeInBytes() const;
   void GetReverseMap();
 
-#if defined(__clang__)
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wlogical-op-parentheses"
-#endif
-
   bool IsOnlyEmpty() const
   {
-    return (Bufs.Size() == 0 || Bufs.Size() == 1 && Bufs[0].Size() == 0);
+    return (Bufs.Size() == 0 || (Bufs.Size() == 1 && Bufs[0].Size() == 0));
   }
-
-#if defined(__clang__)
-#pragma clang diagnostic pop
-#endif
 };
 
 #endif

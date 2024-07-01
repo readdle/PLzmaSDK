@@ -2,7 +2,7 @@
 #
 # The MIT License (MIT)
 #
-# Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+# Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 #
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -32,12 +32,12 @@ set(CMAKE_CXX_STANDARD 11)
 set(PACKAGE "libplzma")
 set(CPACK_PACKAGE_NAME "${PACKAGE}")
 set(CPACK_PACKAGE_VERSION_MAJOR "1")
-set(CPACK_PACKAGE_VERSION_MINOR "0")
-set(CPACK_PACKAGE_VERSION_PATCH "3")
+set(CPACK_PACKAGE_VERSION_MINOR "4")
+set(CPACK_PACKAGE_VERSION_PATCH "2")
 set(CPACK_PACKAGE_VERSION "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}")
 set(CPACK_PACKAGE_VENDOR "olehkulykov@gmail.com")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "${PACKAGE} ${PACKAGE_VERSION}")
-set(SOVERSION "1.0.3")
+set(SOVERSION "1.4.2")
 set(CPACK_SOURCE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}")
 set(VERSION "${CPACK_PACKAGE_VERSION}")
 
@@ -45,9 +45,11 @@ message("Install path: ${CMAKE_INSTALL_PREFIX}")
 
 include(CheckLibraryExists)
 include(CheckFunctionExists)
+include(CheckSymbolExists)
 include(CheckCCompilerFlag)
 include(CheckCXXCompilerFlag)
 include(FindThreads)
+include(CheckIncludeFile)
 
 # COMMAND LINE OPTIONS
 option(LIBPLZMA_OPT_SHARED "Build shared lib." ON)
@@ -55,17 +57,24 @@ option(LIBPLZMA_OPT_STATIC "Build static lib." ON)
 option(LIBPLZMA_OPT_TESTS "Build libplzma tests." ON)
 option(LIBPLZMA_OPT_BUILD_NUMBER "Number of the libplzma build." 0)
 option(LIBPLZMA_OPT_ANDROID "Build for Android." OFF)
+
 option(LIBPLZMA_OPT_NO_C_BINDINGS "Do not build C bindings.
 The library can't be fully used in C environment." OFF)
+
+option(LIBPLZMA_OPT_NO_CRYPTO "Disable internal crypto functionality.
+The library can't read/write password protected archives.
+Accessing to crypto functionality will throw an exception!
+This option will define 'LIBPLZMA_NO_CRYPTO' preprocessor definition as 'LIBPLZMA_NO_CRYPTO=1'.
+Not recommended! But possible. Do this only if you know what are you doing!" OFF)
 
 option(LIBPLZMA_OPT_HAVE_STD "Use std in a private part of the library.
 This option will not affects to the public exported interface.
 It's recommented to use this option only in a case of building the dynamic library or any other bindings.
-This option wiil enable the 'LIBPLZMA_HAVE_STD' preprocessor definition as 'LIBPLZMA_HAVE_STD=1'
-and might be enabled automatically depending on the build type and/or platform" OFF)
+This option will define 'LIBPLZMA_HAVE_STD' preprocessor definition as 'LIBPLZMA_HAVE_STD=1',
+but also might be defined automatically depending on the build type and/or platform." OFF)
 
 option(LIBPLZMA_OPT_NO_TAR "Do not build tar(tarball) specific sources.
-Accessing to the Tar archive type will throw an exception. No Tar support." OFF)
+Accessing to Tar archive types will throw an exception! No Tar support." OFF)
 
 option(LIBPLZMA_OPT_NO_PROGRESS "Build without encode/decode progressing.
 During the execution, the progress will not be notified to the delegate and C callbacks." OFF)
@@ -140,6 +149,7 @@ else()
     check_cxx_compiler_flag("-fno-rtti" WITH_FNO_RTTI_CXX)
     if(WITH_FNO_RTTI_CXX)
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-rtti")
+      add_definitions(-DLIBPLZMA_NO_CPP_RTTI=1)
     endif()
   endif()
 
@@ -159,6 +169,10 @@ endif()
 
 if(LIBPLZMA_OPT_NO_C_BINDINGS)
   add_definitions(-DLIBPLZMA_NO_C_BINDINGS=1)
+endif()
+
+if(LIBPLZMA_OPT_NO_CRYPTO)
+  add_definitions(-DLIBPLZMA_NO_CRYPTO=1)
 endif()
 
 if(LIBPLZMA_OPT_HAVE_STD)
@@ -189,6 +203,54 @@ if(LIBPLZMA_OPT_ANDROID)
   find_library(log-lib log)
 endif()
 
+# ---- check include ----
+CHECK_INCLUDE_FILE("sys/types.h" LIBPLZMA_HAVE_SYS_TYPES_H)
+if(LIBPLZMA_HAVE_SYS_TYPES_H)
+  add_definitions(-DHAVE_SYS_TYPES_H=1)
+endif()
+CHECK_INCLUDE_FILE("sys/sys_types.h" LIBPLZMA_HAVE_SYS_SYS_TYPES_H)
+if(LIBPLZMA_HAVE_SYS_SYS_TYPES_H)
+  add_definitions(-DHAVE_SYS_SYS_TYPES_H=1)
+endif()
+CHECK_INCLUDE_FILE("sys/sysmacros.h" LIBPLZMA_HAVE_SYS_SYSMACROS_H)
+if(LIBPLZMA_HAVE_SYS_SYSMACROS_H)
+  add_definitions(-DHAVE_SYS_SYSMACROS_H=1)
+endif()
+CHECK_INCLUDE_FILE("sys/utime.h" LIBPLZMA_HAVE_SYS_UTIME_H)
+if(LIBPLZMA_HAVE_SYS_UTIME_H)
+  add_definitions(-DHAVE_SYS_UTIME_H=1)
+endif()
+CHECK_INCLUDE_FILE("utime.h" LIBPLZMA_HAVE_UTIME_H)
+if(LIBPLZMA_HAVE_UTIME_H)
+  add_definitions(-DHAVE_UTIME_H=1)
+endif()
+
+
+# ---- check functions ----
+if(MSVC)
+  check_symbol_exists(_wfopen_s "stdio.h" HAVE__WFOPEN_S)
+  if(NOT HAVE__WFOPEN_S)
+    check_symbol_exists(_wfopen_s "wchar.h" HAVE__WFOPEN_S)
+  endif()
+  if(HAVE__WFOPEN_S)
+    add_definitions(-DHAVE__WFOPEN_S=1)
+  endif()
+  
+  check_symbol_exists(_wdupenv_s "stdlib.h" HAVE__WDUPENV_S)
+  if(NOT HAVE__WDUPENV_S)
+    check_symbol_exists(_wdupenv_s "wchar.h" HAVE__WDUPENV_S)
+  endif()
+  if(HAVE__WDUPENV_S)
+    add_definitions(-DHAVE__WDUPENV_S=1)
+  endif()
+  
+  check_symbol_exists(_dupenv_s "stdlib.h" HAVE__DUPENV_S)
+  if(HAVE__DUPENV_S)
+    add_definitions(-DHAVE__DUPENV_S=1)
+  endif()
+endif(MSVC)
+
+
 # ---- include ----
 include_directories(${PROJECT_BINARY_DIR})
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
@@ -208,6 +270,7 @@ set(LIBPLZMA_INTERNAL_HEADERS
   src/C/7zFile.h
   src/C/7zTypes.h
   src/C/7zVersion.h
+  src/C/7zWindows.h
   src/C/Aes.h
   src/C/Alloc.h
   src/C/Bcj2.h
@@ -233,6 +296,7 @@ set(LIBPLZMA_INTERNAL_HEADERS
   src/C/RotateDefs.h
   src/C/Sha256.h
   src/C/Sort.h
+  src/C/SwapBytes.h
   src/C/Threads.h
   src/C/Xz.h
   src/C/XzCrc64.h
@@ -325,8 +389,6 @@ set(LIBPLZMA_INTERNAL_HEADERS
   src/CPP/7zip/MyVersion.h
   src/CPP/7zip/PropID.h
   src/CPP/Common/AutoPtr.h
-  src/CPP/Common/C_FileIO.h
-  src/CPP/Common/CommandLineParser.h
   src/CPP/Common/Common.h
   src/CPP/Common/ComTry.h
   src/CPP/Common/Defs.h
@@ -334,6 +396,7 @@ set(LIBPLZMA_INTERNAL_HEADERS
   src/CPP/Common/IntToString.h
   src/CPP/Common/ListFileUtils.h
   src/CPP/Common/MyBuffer.h
+  src/CPP/Common/MyBuffer2.h
   src/CPP/Common/MyCom.h
   src/CPP/Common/MyException.h
   src/CPP/Common/MyGuidDef.h
@@ -350,19 +413,22 @@ set(LIBPLZMA_INTERNAL_HEADERS
   src/CPP/Common/StdOutStream.h
   src/CPP/Common/StringConvert.h
   src/CPP/Common/StringToInt.h
-  src/CPP/Common/TextConfig.h
   src/CPP/Common/UTFConvert.h
   src/CPP/Common/Wildcard.h
   src/CPP/Windows/Defs.h
+  src/CPP/Windows/FileDir.h
+  src/CPP/Windows/FileFind.h
+  src/CPP/Windows/FileIO.h
+  src/CPP/Windows/FileName.h
+  src/CPP/Windows/Handle.h
+  src/CPP/Windows/NtCheck.h
   src/CPP/Windows/PropVariant.h
   src/CPP/Windows/PropVariantConv.h
   src/CPP/Windows/StdAfx.h
   src/CPP/Windows/Synchronization.h
-  src/CPP/Windows/Handle.h
-  src/CPP/Windows/NtCheck.h
+  src/CPP/Windows/System.h
   src/CPP/Windows/Thread.h
-  src/CPP/Windows/FileIO.h
-  src/CPP/Windows/FileName.h
+  src/CPP/Windows/TimeUtils.h
 )
 
 # ---- all sources(public + internal) ----
@@ -382,6 +448,7 @@ set(LIBPLZMA_SOURCES
   src/C/Delta.c
   src/C/LzFind.c
   src/C/LzFindMt.c
+  src/C/LzFindOpt.c
   src/C/Lzma2Dec.c
   src/C/Lzma2DecMt.c
   src/C/Lzma2Enc.c
@@ -392,6 +459,9 @@ set(LIBPLZMA_SOURCES
   src/C/Ppmd7Dec.c
   src/C/Ppmd7Enc.c
   src/C/Sha256.c
+  src/C/Sha256Opt.c
+  src/C/Sort.c
+  src/C/SwapBytes.c
   src/C/Threads.c
   src/C/Xz.c
   src/C/XzCrc64.c
@@ -417,7 +487,6 @@ set(LIBPLZMA_SOURCES
   src/plzma_raw_heap_memory.cpp
   src/plzma_string.cpp
   src/plzma_update_callback.cpp
-  src/CPP/7zip/Archive/7z/7zCompressionMode.cpp
   src/CPP/7zip/Archive/7z/7zDecode.cpp
   src/CPP/7zip/Archive/7z/7zEncode.cpp
   src/CPP/7zip/Archive/7z/7zExtract.cpp
@@ -450,7 +519,6 @@ set(LIBPLZMA_SOURCES
   src/CPP/7zip/Common/InBuffer.cpp
   src/CPP/7zip/Common/InOutTempBuffer.cpp
   src/CPP/7zip/Common/LimitedStreams.cpp
-  src/CPP/7zip/Common/MethodId.cpp
   src/CPP/7zip/Common/MethodProps.cpp
   src/CPP/7zip/Common/OffsetStream.cpp
   src/CPP/7zip/Common/OutBuffer.cpp
@@ -487,8 +555,6 @@ set(LIBPLZMA_SOURCES
   src/CPP/7zip/Crypto/MyAes.cpp
   src/CPP/7zip/Crypto/MyAesReg.cpp
   src/CPP/7zip/Crypto/RandGen.cpp
-  src/CPP/Common/C_FileIO.cpp
-  src/CPP/Common/CommandLineParser.cpp
   src/CPP/Common/CRC.cpp
   src/CPP/Common/CrcReg.cpp
   src/CPP/Common/IntToString.cpp
@@ -498,14 +564,17 @@ set(LIBPLZMA_SOURCES
   src/CPP/Common/Sha256Reg.cpp
   src/CPP/Common/StringConvert.cpp
   src/CPP/Common/StringToInt.cpp
-  src/CPP/Common/TextConfig.cpp
   src/CPP/Common/UTFConvert.cpp
   src/CPP/Common/Wildcard.cpp
   src/CPP/Common/XzCrc64Reg.cpp
-  src/CPP/Windows/PropVariant.cpp
-  src/CPP/Windows/PropVariantConv.cpp
+  src/CPP/Windows/FileDir.cpp
+  src/CPP/Windows/FileFind.cpp
   src/CPP/Windows/FileIO.cpp
   src/CPP/Windows/FileName.cpp
+  src/CPP/Windows/PropVariant.cpp
+  src/CPP/Windows/PropVariantConv.cpp
+  src/CPP/Windows/System.cpp
+  src/CPP/Windows/TimeUtils.cpp
 )
 
 if(NOT LIBPLZMA_OPT_NO_TAR)
@@ -517,7 +586,6 @@ if(NOT LIBPLZMA_OPT_NO_TAR)
     src/CPP/7zip/Archive/Tar/TarItem.h
     src/CPP/7zip/Archive/Tar/TarOut.h
     src/CPP/7zip/Archive/Tar/TarUpdate.h
-    src/CPP/Windows/TimeUtils.h
   )
 
   list(APPEND LIBPLZMA_SOURCES
@@ -528,7 +596,6 @@ if(NOT LIBPLZMA_OPT_NO_TAR)
     src/CPP/7zip/Archive/Tar/TarOut.cpp
     src/CPP/7zip/Archive/Tar/TarRegister.cpp
     src/CPP/7zip/Archive/Tar/TarUpdate.cpp
-    src/CPP/Windows/TimeUtils.cpp
   )
 endif()
 
@@ -593,6 +660,7 @@ source_group("C"
   src/C/7zStream.c
   src/C/7zTypes.h
   src/C/7zVersion.h
+  src/C/7zWindows.h
   src/C/Aes.c
   src/C/Aes.h
   src/C/AesOpt.c
@@ -614,6 +682,7 @@ source_group("C"
   src/C/LzFind.h
   src/C/LzFindMt.c
   src/C/LzFindMt.h
+  src/C/LzFindOpt.c
   src/C/LzHash.h
   src/C/Lzma2Dec.c
   src/C/Lzma2Dec.h
@@ -639,7 +708,11 @@ source_group("C"
   src/C/RotateDefs.h
   src/C/Sha256.c
   src/C/Sha256.h
+  src/C/Sha256Opt.c
+  src/C/Sort.c
   src/C/Sort.h
+  src/C/SwapBytes.c
+  src/C/SwapBytes.h
   src/C/Threads.c
   src/C/Threads.h
   src/C/Xz.c
@@ -657,19 +730,25 @@ source_group("C"
 source_group("CPP/Windows"
   FILES
   src/CPP/Windows/Defs.h
+  src/CPP/Windows/FileDir.cpp
+  src/CPP/Windows/FileDir.h
+  src/CPP/Windows/FileFind.cpp
+  src/CPP/Windows/FileFind.h
+  src/CPP/Windows/FileIO.cpp
+  src/CPP/Windows/FileIO.h
+  src/CPP/Windows/FileName.cpp
+  src/CPP/Windows/FileName.h
+  src/CPP/Windows/Handle.h
+  src/CPP/Windows/NtCheck.h
   src/CPP/Windows/PropVariant.cpp
   src/CPP/Windows/PropVariant.h
   src/CPP/Windows/PropVariantConv.cpp
   src/CPP/Windows/PropVariantConv.h
   src/CPP/Windows/StdAfx.h
   src/CPP/Windows/Synchronization.h
-  src/CPP/Windows/Handle.h
-  src/CPP/Windows/NtCheck.h
+  src/CPP/Windows/System.cpp
+  src/CPP/Windows/System.h
   src/CPP/Windows/Thread.h
-  src/CPP/Windows/FileIO.h
-  src/CPP/Windows/FileIO.cpp
-  src/CPP/Windows/FileName.cpp
-  src/CPP/Windows/FileName.h
   src/CPP/Windows/TimeUtils.cpp
   src/CPP/Windows/TimeUtils.h
 )
@@ -678,10 +757,6 @@ source_group("CPP/Windows"
 source_group("CPP/Common"
   FILES
   src/CPP/Common/AutoPtr.h
-  src/CPP/Common/C_FileIO.cpp
-  src/CPP/Common/C_FileIO.h
-  src/CPP/Common/CommandLineParser.cpp
-  src/CPP/Common/CommandLineParser.h
   src/CPP/Common/Common.h
   src/CPP/Common/ComTry.h
   src/CPP/Common/CRC.cpp
@@ -692,6 +767,7 @@ source_group("CPP/Common"
   src/CPP/Common/IntToString.h
   src/CPP/Common/ListFileUtils.h
   src/CPP/Common/MyBuffer.h
+  src/CPP/Common/MyBuffer2.h
   src/CPP/Common/MyCom.h
   src/CPP/Common/MyException.h
   src/CPP/Common/MyGuidDef.h
@@ -714,8 +790,6 @@ source_group("CPP/Common"
   src/CPP/Common/StringConvert.h
   src/CPP/Common/StringToInt.cpp
   src/CPP/Common/StringToInt.h
-  src/CPP/Common/TextConfig.cpp
-  src/CPP/Common/TextConfig.h
   src/CPP/Common/UTFConvert.cpp
   src/CPP/Common/UTFConvert.h
   src/CPP/Common/Wildcard.cpp
@@ -738,7 +812,6 @@ source_group("CPP/7zip"
 # ---- grop: Lzma CPP/7zip/Archive/7z headers and sources ----
 source_group("CPP/7zip/Archive/7z"
   FILES
-  src/CPP/7zip/Archive/7z/7zCompressionMode.cpp
   src/CPP/7zip/Archive/7z/7zCompressionMode.h
   src/CPP/7zip/Archive/7z/7zDecode.cpp
   src/CPP/7zip/Archive/7z/7zDecode.h
@@ -838,7 +911,6 @@ source_group("CPP/7zip/Common"
   src/CPP/7zip/Common/InOutTempBuffer.h
   src/CPP/7zip/Common/LimitedStreams.cpp
   src/CPP/7zip/Common/LimitedStreams.h
-  src/CPP/7zip/Common/MethodId.cpp
   src/CPP/7zip/Common/MethodId.h
   src/CPP/7zip/Common/MethodProps.cpp
   src/CPP/7zip/Common/MethodProps.h

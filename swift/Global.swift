@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -29,6 +29,15 @@ import Foundation
 #if SWIFT_PACKAGE
 import libplzma
 #endif
+
+
+/// The full version string of the library generated on build time.
+///
+/// Contains version<major, minor, patch> with optional automatic build number,
+/// library type, build date/time, os, compiler, environment, usage, features, etc. and original LZMA SDK version.
+public var version: String {
+    return String(utf8CString: plzma_version())
+}
 
 
 /// Receives or changes the current size in bytes of the stream's read block per single read request.

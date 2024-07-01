@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -33,51 +33,65 @@ namespace plzma {
     
     void DecoderImpl::retain() {
 #if defined(LIBPLZMA_THREAD_UNSAFE)
-        LIBPLZMA_RETAIN_IMPL(__m_RefCount)
+        LIBPLZMA_RETAIN_IMPL(_m_RefCount)
 #else
-        LIBPLZMA_RETAIN_LOCKED_IMPL(__m_RefCount, _mutex)
+        LIBPLZMA_RETAIN_LOCKED_IMPL(_m_RefCount, _mutex)
 #endif
     }
     
     void DecoderImpl::release() {
 #if defined(LIBPLZMA_THREAD_UNSAFE)
-        LIBPLZMA_RELEASE_IMPL(__m_RefCount)
+        LIBPLZMA_RELEASE_IMPL(_m_RefCount)
 #else
-        LIBPLZMA_RELEASE_LOCKED_IMPL(__m_RefCount, _mutex)
+        LIBPLZMA_RELEASE_LOCKED_IMPL(_m_RefCount, _mutex)
 #endif
     }
     
     void DecoderImpl::setPassword(const wchar_t * LIBPLZMA_NULLABLE password) {
+#if defined(LIBPLZMA_NO_CRYPTO)
+        throw Exception(plzma_error_code_invalid_arguments, LIBPLZMA_NO_CRYPTO_EXCEPTION_WHAT, __FILE__, __LINE__);
+#else
         LIBPLZMA_LOCKGUARD(lock, _mutex)
         _password.clear(plzma_erase_zero);
         _password.set(password);
+#endif
     }
     
     void DecoderImpl::setPassword(const char * LIBPLZMA_NULLABLE password) {
+#if defined(LIBPLZMA_NO_CRYPTO)
+        throw Exception(plzma_error_code_invalid_arguments, LIBPLZMA_NO_CRYPTO_EXCEPTION_WHAT, __FILE__, __LINE__);
+#else
         LIBPLZMA_LOCKGUARD(lock, _mutex)
         _password.clear(plzma_erase_zero);
         _password.set(password);
+#endif
     }
     
     void DecoderImpl::setProgressDelegate(ProgressDelegate * LIBPLZMA_NULLABLE delegate) {
+#if !defined(LIBPLZMA_NO_PROGRESS)
         _progress->setDelegate(delegate);
+#endif
     }
     
     bool DecoderImpl::open() {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         if (_opened || _opening) {
             return _opened;
         }
         
         CMyComPtr<DecoderImpl> selfPtr(this);
+#if defined(LIBPLZMA_NO_CRYPTO)
+        _openCallback = CMyComPtr<OpenCallback>(new OpenCallback(_stream, _type));
+#else
         _openCallback = CMyComPtr<OpenCallback>(new OpenCallback(_stream, _password, _type));
+#endif
         bool opened = false;
         _opening = true;
         
-        LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+        LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
         _stream->open();
         opened = _openCallback->open();
-        LIBPLZMA_LOCKGUARD_LOCK(lock)
+        LIBPLZMA_UNIQUE_LOCK_LOCK(lock)
         
         if (_aborted) {
             _stream->close();
@@ -148,11 +162,15 @@ namespace plzma {
     
 #if !defined(LIBPLZMA_NO_C_BINDINGS)
     void DecoderImpl::setUtf8Callback(plzma_progress_delegate_utf8_callback LIBPLZMA_NULLABLE callback) {
+#if !defined(LIBPLZMA_NO_PROGRESS)
         _progress->setUtf8Callback(callback);
+#endif
     }
     
     void DecoderImpl::setWideCallback(plzma_progress_delegate_wide_callback LIBPLZMA_NULLABLE callback) {
+#if !defined(LIBPLZMA_NO_PROGRESS)
         _progress->setWideCallback(callback);
+#endif
     }
 #endif
     
@@ -160,13 +178,17 @@ namespace plzma {
                              const plzma_file_type type,
                              const plzma_context context) : CMyUnknownImp(),
         _stream(stream),
+#if !defined(LIBPLZMA_NO_PROGRESS)
         _progress(makeShared<Progress>(context)),
+#endif
         _type(type) {
             plzma::initialize();
     }
     
     DecoderImpl::~DecoderImpl() {
+#if !defined(LIBPLZMA_NO_CRYPTO)
         _password.clear(plzma_erase_zero);
+#endif
         _stream->close();
     }
     

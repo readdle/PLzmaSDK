@@ -3,7 +3,7 @@
 //
 // The MIT License (MIT)
 //
-// Copyright (c) 2015 - 2021 Oleh Kulykov <olehkulykov@gmail.com>
+// Copyright (c) 2015 - 2024 Oleh Kulykov <olehkulykov@gmail.com>
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
@@ -36,6 +36,7 @@
 #include "CPP/Common/Defs.h"
 
 namespace plzma {
+
 #if defined(LIBPLZMA_THREAD_UNSAFE)
     void Progress::retain() noexcept {
         LIBPLZMA_RETAIN_IMPL(_referenceCounter)
@@ -80,33 +81,33 @@ namespace plzma {
     }
     
     void Progress::setDelegate(ProgressDelegate * delegate) {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         _delegate = delegate;
         if ( (_reportable = calculateReportable()) && _progress > 0.0) {
             const auto report = reportData();
-            LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+            LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
             report.report();
         }
     }
     
 #if !defined(LIBPLZMA_NO_C_BINDINGS)
     void Progress::setUtf8Callback(plzma_progress_delegate_utf8_callback callback) {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         _utf8Callback = callback;
         if ( (_reportable = calculateReportable()) && _progress > 0.0) {
             const auto report = reportData();
-            LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+            LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
             report.report();
         }
     }
     
     void Progress::setWideCallback(plzma_progress_delegate_wide_callback callback) {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         _wideCallback = callback;
         _reportable = calculateReportable();
         if ( (_reportable = calculateReportable()) && _progress > 0.0) {
             const auto report = reportData();
-            LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+            LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
             report.report();
         }
     }
@@ -128,58 +129,58 @@ namespace plzma {
     }
     
     void Progress::setCompleted(const uint64_t completed) {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         _partCompleted = completed;
         const auto prevProgress = _progress;
         updateProgress();
         if (_reportable && prevProgress != _progress) {
             const auto report = reportData();
-            LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+            LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
             report.report();
         }
     }
     
     void Progress::setTotal(const uint64_t total) {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         _partTotal = total;
         const auto prevProgress = _progress;
         updateProgress();
         if (_reportable && prevProgress != _progress) {
             const auto report = reportData();
-            LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+            LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
             report.report();
         }
     }
     
     void Progress::finish() {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         _partNumber = _partsCount;
         _partCompleted = _partTotal;
         const auto prevProgress = _progress;
         updateProgress();
         if (_reportable && prevProgress != _progress) {
             const auto report = reportData();
-            LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+            LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
             report.report();
         }
     }
     
     void Progress::setPath(Path && path) {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         _path = static_cast<Path &&>(path);
         if (_reportable) {
             const auto report = reportData();
-            LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+            LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
             report.report();
         }
     }
     
     void Progress::setPath(const Path & path) {
-        LIBPLZMA_LOCKGUARD(lock, _mutex)
+        LIBPLZMA_UNIQUE_LOCK(lock, _mutex)
         _path = path;
         if (_reportable) {
             const auto report = reportData();
-            LIBPLZMA_LOCKGUARD_UNLOCK(lock)
+            LIBPLZMA_UNIQUE_LOCK_UNLOCK(lock)
             report.report();
         }
     }
