@@ -1014,20 +1014,15 @@ bool GetCurrentDir(FString &path)
   {
     // if (errno != ERANGE) return false;
     #if defined(__GLIBC__) || defined(__APPLE__)
-      long size = pathconf(".", _PC_PATH_MAX);
-      if (size == -1) size = 4096;
-
-      char *pathBuffer = (char *)malloc(size);
-      if (!pathBuffer) return false;
-
-      res = getcwd(pathBuffer, size);
+    /* As an extension to the POSIX.1-2001 standard, glibc's getcwd()
+       allocates the buffer dynamically using malloc(3) if buf is NULL. */
+    res = getcwd(NULL, 0);
     if (res)
     {
-      path = fas2fs(pathBuffer);
-      ::free(pathBuffer);
+      path = fas2fs(res);
+      ::free(res);
       return true;
     }
-      ::free(pathBuffer);
     #endif
     return false;
   }
