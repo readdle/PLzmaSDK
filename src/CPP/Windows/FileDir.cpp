@@ -1016,7 +1016,10 @@ bool GetCurrentDir(FString &path)
     #if defined(__GLIBC__) || defined(__APPLE__)
     /* As an extension to the POSIX.1-2001 standard, glibc's getcwd()
        allocates the buffer dynamically using malloc(3) if buf is NULL. */
+    #ifndef __clang_analyzer__
+    // Static analyzer does not understand that NULL can be passed to this call
     res = getcwd(NULL, 0);
+    #endif
     if (res)
     {
       path = fas2fs(res);
