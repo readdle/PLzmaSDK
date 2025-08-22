@@ -1013,7 +1013,7 @@ bool GetCurrentDir(FString &path)
   }
   {
     // if (errno != ERANGE) return false;
-    #if defined(__GLIBC__) || defined(__APPLE__)
+    #if defined(__GLIBC__) || defined(__APPLE__) && !defined(__clang_analyzer__)
     /* As an extension to the POSIX.1-2001 standard, glibc's getcwd()
        allocates the buffer dynamically using malloc(3) if buf is NULL. */
     res = getcwd(NULL, 0);
