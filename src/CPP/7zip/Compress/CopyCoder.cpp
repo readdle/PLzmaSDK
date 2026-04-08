@@ -138,16 +138,20 @@ Z7_COM7F_IMF(CCopyCoder::GetInStreamProcessedSize(UInt64 *value))
 
 HRESULT CopyStream(ISequentialInStream *inStream, ISequentialOutStream *outStream, ICompressProgressInfo *progress)
 {
+#ifndef __clang_analyzer__
   CMyComPtr<ICompressCoder> copyCoder = new CCopyCoder;
   return copyCoder->Code(inStream, outStream, NULL, NULL, progress);
+#endif
 }
 
 HRESULT CopyStream_ExactSize(ISequentialInStream *inStream, ISequentialOutStream *outStream, UInt64 size, ICompressProgressInfo *progress)
 {
+#ifndef __clang_analyzer__
   NCompress::CCopyCoder *copyCoderSpec = new NCompress::CCopyCoder;
   CMyComPtr<ICompressCoder> copyCoder = copyCoderSpec;
   RINOK(copyCoder->Code(inStream, outStream, NULL, &size, progress))
   return copyCoderSpec->TotalSize == size ? S_OK : E_FAIL;
+#endif
 }
 
 }

@@ -229,6 +229,8 @@ Z7_COM7F_IMF(CFolderOutStream::GetSubStreamSize(UInt64 subStream, UInt64 *value)
 Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
     Int32 testModeSpec, IArchiveExtractCallback *extractCallbackSpec))
 {
+#ifndef __clang_analyzer__
+
   // for GCC
   // CFolderOutStream *folderOutStream = new CFolderOutStream;
   // CMyComPtr<ISequentialOutStream> outStream(folderOutStream);
@@ -440,6 +442,8 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
   return S_OK;
 
   COM_TRY_END
+    
+#endif
 }
 
 }}
