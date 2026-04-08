@@ -234,6 +234,8 @@ HRESULT CDecoder::Decode(
     #endif
     )
 {
+#ifndef __clang_analyzer__
+
   dataAfterEnd_Error = false;
 
   const UInt64 *packPositions = &folders.PackPositions[folders.FoStartPackStreamIndex[folderIndex]];
@@ -594,6 +596,9 @@ HRESULT CDecoder::Decode(
   #else
     return E_FAIL;
   #endif
+    
+#endif
+
 }
 
 }}
