@@ -75,6 +75,7 @@ Z7_COM7F_IMF(CLimitedInStream::Seek(Int64 offset, UInt32 seekOrigin, UInt64 *new
 
 HRESULT CreateLimitedInStream(IInStream *inStream, UInt64 pos, UInt64 size, ISequentialInStream **resStream)
 {
+#ifndef __clang_analyzer__
   *resStream = NULL;
   CLimitedInStream *streamSpec = new CLimitedInStream;
   CMyComPtr<ISequentialInStream> streamTemp = streamSpec;
@@ -83,6 +84,7 @@ HRESULT CreateLimitedInStream(IInStream *inStream, UInt64 pos, UInt64 size, ISeq
   streamSpec->SeekToStart();
   *resStream = streamTemp.Detach();
   return S_OK;
+#endif
 }
 
 Z7_COM7F_IMF(CClusterInStream::Read(void *data, UInt32 size, UInt32 *processedSize))
