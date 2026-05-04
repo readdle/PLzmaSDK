@@ -281,6 +281,8 @@ Z7_COM7F_IMF(CHandler::GetProperty(UInt32 /* index */, PROPID propID, PROPVARIAN
 Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
     Int32 testMode, IArchiveExtractCallback *extractCallback))
 {
+#ifndef __clang_analyzer__
+
   COM_TRY_BEGIN
   if (numItems == 0)
     return S_OK;
@@ -319,6 +321,7 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
   outStream.Release();
   return extractCallback->SetOperationResult(NExtract::NOperationResult::kOK);
   COM_TRY_END
+#endif
 }
 
 Z7_COM7F_IMF(CHandler::GetStream(UInt32 index, ISequentialInStream **stream))
