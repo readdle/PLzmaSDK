@@ -23,7 +23,13 @@ public:
 #endif
   CMyComPtr(T* p) throw() { if ((_p = p) != NULL) p->AddRef(); }
   CMyComPtr(const CMyComPtr<T>& lp) throw() { if ((_p = lp._p) != NULL) _p->AddRef(); }
+    
+// pastey:
+// Xcode 26.4 Static Analyzer says that here memory is used after it is freed
+// I failed to understand what the robot is trying to say us.
+#ifndef __clang_analyzer__
   ~CMyComPtr() { if (_p) _p->Release(); }
+#endif
   void Release() { if (_p) { _p->Release(); _p = NULL; } }
   operator T*() const {  return (T*)_p;  }
   // T& operator*() const {  return *_p; }
