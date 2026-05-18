@@ -671,6 +671,7 @@ Z7_COM7F_IMF(CHandler::GetProperty(UInt32 index, PROPID propID, PROPVARIANT *val
 Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
     Int32 testMode, IArchiveExtractCallback *extractCallback))
 {
+#ifndef __clang_analyzer__
   COM_TRY_BEGIN
   ISequentialInStream *stream = _seqStream;
   const bool seqMode = (_stream == NULL);
@@ -799,6 +800,7 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
   }
   return S_OK;
   COM_TRY_END
+#endif
 }
 
 

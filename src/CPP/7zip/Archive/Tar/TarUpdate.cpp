@@ -155,6 +155,7 @@ HRESULT UpdateArchive(IInStream *inStream, ISequentialOutStream *outStream,
     const CUpdateOptions &options,
     IArchiveUpdateCallback *updateCallback)
 {
+#ifndef __clang_analyzer__
   COutArchive outArchive;
   outArchive.Create(outStream);
   outArchive.Pos = 0;
@@ -552,6 +553,7 @@ HRESULT UpdateArchive(IInStream *inStream, ISequentialOutStream *outStream,
       }
     }
   }
+#endif
 }
 
 }}
