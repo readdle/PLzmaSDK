@@ -83,7 +83,10 @@ namespace pathUtils {
             struct dirent d, * dp;
             int readRes;
             do {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
                 if ( (readRes = ::readdir_r(dir.dir, &d, &dp)) == 0 && dp) {
+#pragma clang diagnostic pop
                     if ((::strcmp(d.d_name, ".") == 0) || (::strcmp(d.d_name, "..") == 0) || (::strlen(d.d_name) == 0)) { continue; }
                     path.append(d.d_name);
                     bool isDir = false, isFile = false, isLink = false;

@@ -460,6 +460,8 @@ Z7_COM7F_IMF(CCompressProgressInfoImp::SetRatioInfo(const UInt64 *inSize, const 
 Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
     Int32 testMode, IArchiveExtractCallback *extractCallback))
 {
+#ifndef __clang_analyzer__
+
   COM_TRY_BEGIN
 
   if (numItems == 0)
@@ -597,6 +599,8 @@ Z7_COM7F_IMF(CHandler::Extract(const UInt32 *indices, UInt32 numItems,
   return extractCallback->SetOperationResult(opResult);
 
   COM_TRY_END
+    
+#endif
 }
 
 namespace NLzmaAr {
